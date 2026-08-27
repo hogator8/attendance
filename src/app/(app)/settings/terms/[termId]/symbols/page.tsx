@@ -89,7 +89,14 @@ export default async function SymbolsSettingsPage({
         <p className="mb-3 text-xs text-slate-500">
           記号・項目名を入力した行のみ有効になります。保存すると既存の設定を置き換えます。
         </p>
-        <form action={saveSymbols} className="flex flex-col gap-4">
+        {/* keyにDBの最新状態を反映させることで、保存成功後にReactがフォームを
+            自動リセットする際、defaultValueが保存前の初期値に戻る前に
+            フォーム全体を新しい値で再マウントさせる */}
+        <form
+          key={symbols?.map((s) => s.id).join(",") || "empty"}
+          action={saveSymbols}
+          className="flex flex-col gap-4"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -167,7 +174,11 @@ export default async function SymbolsSettingsPage({
 
       <section className={`${cardClass} max-w-xl`}>
         <h2 className="mb-3 font-bold text-slate-900">遅刻・早退の欠席換算ルール</h2>
-        <form action={saveConversionRule} className="flex flex-col gap-3">
+        <form
+          key={`${conversionRule?.late_n ?? 0}-${conversionRule?.early_n ?? 0}-${conversionRule?.combined_n ?? 0}`}
+          action={saveConversionRule}
+          className="flex flex-col gap-3"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <div className="flex flex-wrap gap-4">
             <div className="flex flex-col gap-1">
@@ -216,7 +227,11 @@ export default async function SymbolsSettingsPage({
         <p className="mb-3 text-xs text-slate-500">
           出席率（%）の範囲に応じて集計画面のセルを色分けします。
         </p>
-        <form action={saveColorRules} className="flex flex-col gap-4">
+        <form
+          key={colorRules?.map((c) => c.id).join(",") || "empty"}
+          action={saveColorRules}
+          className="flex flex-col gap-4"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -285,7 +300,11 @@ export default async function SymbolsSettingsPage({
 
       <section className={`${cardClass} max-w-sm`}>
         <h2 className="mb-3 font-bold text-slate-900">出席率の小数点桁数</h2>
-        <form action={saveDecimalDigits} className="flex flex-col gap-3">
+        <form
+          key={String(termSettings?.percent_decimal_digits ?? 1)}
+          action={saveDecimalDigits}
+          className="flex flex-col gap-3"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <select
             name="percent_decimal_digits"
