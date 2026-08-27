@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import SubmitForm from "@/components/SubmitForm";
 import {
   updateClassName,
   createTimetableVersion,
@@ -85,7 +86,11 @@ export default async function ClassDetailPage({
 
       <div className={`${cardClass} max-w-md`}>
         <h2 className="mb-3 font-bold text-slate-900">名称変更</h2>
-        <form action={updateClassName} className="flex items-end gap-3">
+        <SubmitForm
+          action={updateClassName}
+          successMessage="名称を保存しました"
+          className="flex items-end gap-3"
+        >
           <input type="hidden" name="class_id" value={cls.id} />
           <div className="flex flex-1 flex-col gap-1">
             <label className={labelClass}>名称</label>
@@ -99,7 +104,7 @@ export default async function ClassDetailPage({
           <button type="submit" className={buttonSecondaryClass}>
             保存
           </button>
-        </form>
+        </SubmitForm>
       </div>
 
       <section>
@@ -127,8 +132,9 @@ export default async function ClassDetailPage({
           <p className="mb-2 text-xs text-slate-500">
             年度途中で時間割を変更する場合、適用開始日を指定して新しいバージョンを作成します。
           </p>
-          <form
+          <SubmitForm
             action={createTimetableVersion}
+            successMessage="時間割バージョンを作成しました"
             className="flex items-end gap-3"
           >
             <input type="hidden" name="class_id" value={cls.id} />
@@ -144,7 +150,7 @@ export default async function ClassDetailPage({
             <button type="submit" className={buttonPrimaryClass}>
               作成
             </button>
-          </form>
+          </SubmitForm>
         </div>
 
         {editingVersion ? (
@@ -153,7 +159,11 @@ export default async function ClassDetailPage({
               編集中：{editingVersion.effective_from} 〜{" "}
               {editingVersion.effective_to ?? "現在"}
             </p>
-            <form action={saveTimetableSlots} className="flex flex-col gap-3">
+            <SubmitForm
+              action={saveTimetableSlots}
+              successMessage="時間割を保存しました"
+              className="flex flex-col gap-3"
+            >
               <input type="hidden" name="class_id" value={cls.id} />
               <input type="hidden" name="term_id" value={cls.term_id} />
               <input
@@ -227,7 +237,7 @@ export default async function ClassDetailPage({
                   時間割を保存
                 </button>
               </div>
-            </form>
+            </SubmitForm>
           </div>
         ) : (
           <p className="text-sm text-slate-500">

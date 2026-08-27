@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTerm } from "@/lib/terms";
+import SubmitForm from "@/components/SubmitForm";
 import { createClass } from "./actions";
 import { cardClass, inputClass, labelClass, buttonPrimaryClass } from "@/lib/ui";
 
@@ -51,7 +52,11 @@ export default async function ClassesPage() {
 
       <section className={`${cardClass} max-w-md`}>
         <h2 className="mb-3 font-bold text-slate-900">新規作成</h2>
-        <form action={createClass} className="flex flex-col gap-3">
+        <SubmitForm
+          action={createClass}
+          successMessage="クラスを作成しました"
+          className="flex flex-col gap-3"
+        >
           <input type="hidden" name="term_id" value={term.id} />
           <div className="flex flex-col gap-1">
             <label className={labelClass}>名称</label>
@@ -74,7 +79,7 @@ export default async function ClassesPage() {
               作成
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </section>
     </div>
   );

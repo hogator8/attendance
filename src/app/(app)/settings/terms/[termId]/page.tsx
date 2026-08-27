@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import SubmitForm from "@/components/SubmitForm";
 import { updateTermDates } from "../actions";
 import {
   cardClass,
@@ -58,7 +59,11 @@ export default async function TermSettingsPage({
 
       <div className={`${cardClass} max-w-lg`}>
         <h2 className="mb-3 font-bold text-slate-900">学期の基本情報</h2>
-        <form action={updateTermDates} className="flex flex-col gap-3">
+        <SubmitForm
+          action={updateTermDates}
+          successMessage="保存しました"
+          className="flex flex-col gap-3"
+        >
           <input type="hidden" name="term_id" value={term.id} />
           <div className="flex flex-col gap-1">
             <label className={labelClass}>学期名</label>
@@ -96,7 +101,7 @@ export default async function TermSettingsPage({
               保存
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </div>
     </div>
   );

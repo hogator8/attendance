@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTerm } from "@/lib/terms";
+import SubmitForm from "@/components/SubmitForm";
 import { updateStaffInfo, savePermissions } from "./actions";
 import {
   cardClass,
@@ -59,7 +60,11 @@ export default async function StaffDetailPage({
 
       <div className={`${cardClass} max-w-md`}>
         <h2 className="mb-3 font-bold text-slate-900">基本情報</h2>
-        <form action={updateStaffInfo} className="flex flex-col gap-3">
+        <SubmitForm
+          action={updateStaffInfo}
+          successMessage="保存しました"
+          className="flex flex-col gap-3"
+        >
           <input type="hidden" name="staff_id" value={staff.id} />
           <div className="flex flex-col gap-1">
             <label className={labelClass}>氏名</label>
@@ -94,7 +99,7 @@ export default async function StaffDetailPage({
               保存
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </div>
 
       <section className={cardClass}>
@@ -110,7 +115,11 @@ export default async function StaffDetailPage({
         ) : (classes ?? []).length === 0 ? (
           <p className="text-sm text-slate-500">クラスがまだ登録されていません。</p>
         ) : (
-          <form action={savePermissions} className="flex flex-col gap-4">
+          <SubmitForm
+            action={savePermissions}
+            successMessage="権限を保存しました"
+            className="flex flex-col gap-4"
+          >
             <input type="hidden" name="staff_id" value={staff.id} />
             <div className="overflow-x-auto">
               <table className={tableClass}>
@@ -158,7 +167,7 @@ export default async function StaffDetailPage({
                 権限を保存
               </button>
             </div>
-          </form>
+          </SubmitForm>
         )}
       </section>
     </div>

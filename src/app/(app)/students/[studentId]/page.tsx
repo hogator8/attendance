@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTerm } from "@/lib/terms";
 import { todayISO } from "@/lib/date";
+import SubmitForm from "@/components/SubmitForm";
 import {
   updateStudentInfo,
   updateStudentStatus,
@@ -104,8 +105,9 @@ export default async function StudentDetailPage({
               </span>
             )}
           </div>
-          <form
+          <SubmitForm
             action={updateStudentInfo}
+            successMessage="保存しました"
             encType="multipart/form-data"
             className="flex flex-col gap-3"
           >
@@ -156,12 +158,16 @@ export default async function StudentDetailPage({
                 保存
               </button>
             </div>
-          </form>
+          </SubmitForm>
         </div>
 
         <div className={`${cardClass} max-w-md flex-1`}>
           <h2 className="mb-3 font-bold text-slate-900">ステータス</h2>
-          <form action={updateStudentStatus} className="flex flex-col gap-3">
+          <SubmitForm
+            action={updateStudentStatus}
+            successMessage="ステータスを更新しました"
+            className="flex flex-col gap-3"
+          >
             <input type="hidden" name="student_id" value={student.id} />
             <div className="flex flex-col gap-1">
               <label className={labelClass}>状態</label>
@@ -198,7 +204,7 @@ export default async function StudentDetailPage({
                 ステータスを更新
               </button>
             </div>
-          </form>
+          </SubmitForm>
         </div>
       </div>
 
@@ -217,7 +223,11 @@ export default async function StudentDetailPage({
         </p>
 
         {activeTerm ? (
-          <form action={assignHomeroom} className="mb-4 flex flex-wrap items-end gap-3">
+          <SubmitForm
+            action={assignHomeroom}
+            successMessage="クラス配属を更新しました"
+            className="mb-4 flex flex-wrap items-end gap-3"
+          >
             <input type="hidden" name="student_id" value={student.id} />
             <div className="flex flex-col gap-1">
               <label className={labelClass}>クラス</label>
@@ -252,7 +262,7 @@ export default async function StudentDetailPage({
             <button type="submit" className={buttonPrimaryClass}>
               配属・クラス異動
             </button>
-          </form>
+          </SubmitForm>
         ) : (
           <p className="mb-4 text-xs text-slate-500">
             アクティブな学期がないため、クラス配属はできません。
@@ -301,7 +311,11 @@ export default async function StudentDetailPage({
                 <span>
                   {m.class?.name}（{m.valid_from}〜）
                 </span>
-                <form action={endElective} className="flex items-center gap-2">
+                <SubmitForm
+                  action={endElective}
+                  successMessage="選択科目を終了しました"
+                  className="flex items-center gap-2"
+                >
                   <input type="hidden" name="membership_id" value={m.id} />
                   <input type="hidden" name="student_id" value={student.id} />
                   <input
@@ -313,14 +327,18 @@ export default async function StudentDetailPage({
                   <button type="submit" className={buttonSecondaryClass}>
                     終了
                   </button>
-                </form>
+                </SubmitForm>
               </li>
             ))}
           </ul>
         )}
 
         {activeTerm ? (
-          <form action={assignElective} className="flex flex-wrap items-end gap-3">
+          <SubmitForm
+            action={assignElective}
+            successMessage="選択科目を追加しました"
+            className="flex flex-wrap items-end gap-3"
+          >
             <input type="hidden" name="student_id" value={student.id} />
             <div className="flex flex-col gap-1">
               <label className={labelClass}>選択科目</label>
@@ -346,7 +364,7 @@ export default async function StudentDetailPage({
             <button type="submit" className={buttonPrimaryClass}>
               追加
             </button>
-          </form>
+          </SubmitForm>
         ) : (
           <p className="text-xs text-slate-500">
             アクティブな学期がないため、選択科目の割当はできません。

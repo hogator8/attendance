@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import SubmitForm from "@/components/SubmitForm";
 import {
   saveSymbols,
   saveConversionRule,
@@ -89,7 +90,11 @@ export default async function SymbolsSettingsPage({
         <p className="mb-3 text-xs text-slate-500">
           記号・項目名を入力した行のみ有効になります。保存すると既存の設定を置き換えます。
         </p>
-        <form action={saveSymbols} className="flex flex-col gap-4">
+        <SubmitForm
+          action={saveSymbols}
+          successMessage="記号設定を保存しました"
+          className="flex flex-col gap-4"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -162,12 +167,16 @@ export default async function SymbolsSettingsPage({
               記号設定を保存
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </section>
 
       <section className={`${cardClass} max-w-xl`}>
         <h2 className="mb-3 font-bold text-slate-900">遅刻・早退の欠席換算ルール</h2>
-        <form action={saveConversionRule} className="flex flex-col gap-3">
+        <SubmitForm
+          action={saveConversionRule}
+          successMessage="換算ルールを保存しました"
+          className="flex flex-col gap-3"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <div className="flex flex-wrap gap-4">
             <div className="flex flex-col gap-1">
@@ -208,7 +217,7 @@ export default async function SymbolsSettingsPage({
               換算ルールを保存
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </section>
 
       <section className={cardClass}>
@@ -216,7 +225,11 @@ export default async function SymbolsSettingsPage({
         <p className="mb-3 text-xs text-slate-500">
           出席率（%）の範囲に応じて集計画面のセルを色分けします。
         </p>
-        <form action={saveColorRules} className="flex flex-col gap-4">
+        <SubmitForm
+          action={saveColorRules}
+          successMessage="色分けルールを保存しました"
+          className="flex flex-col gap-4"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -280,12 +293,16 @@ export default async function SymbolsSettingsPage({
               色分けルールを保存
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </section>
 
       <section className={`${cardClass} max-w-sm`}>
         <h2 className="mb-3 font-bold text-slate-900">出席率の小数点桁数</h2>
-        <form action={saveDecimalDigits} className="flex flex-col gap-3">
+        <SubmitForm
+          action={saveDecimalDigits}
+          successMessage="保存しました"
+          className="flex flex-col gap-3"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <select
             name="percent_decimal_digits"
@@ -301,7 +318,7 @@ export default async function SymbolsSettingsPage({
               保存
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </section>
     </div>
   );

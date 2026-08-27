@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import SubmitForm from "@/components/SubmitForm";
 import { createTerm, activateTerm } from "./actions";
 import {
   cardClass,
@@ -62,12 +63,15 @@ export default async function TermsPage() {
                 </td>
                 <td className={tdClass}>
                   {!term.is_active && (
-                    <form action={activateTerm}>
+                    <SubmitForm
+                      action={activateTerm}
+                      successMessage="アクティブな学期を切り替えました"
+                    >
                       <input type="hidden" name="term_id" value={term.id} />
                       <button type="submit" className={buttonSecondaryClass}>
                         この学期をアクティブにする
                       </button>
-                    </form>
+                    </SubmitForm>
                   )}
                 </td>
               </tr>
@@ -85,7 +89,11 @@ export default async function TermsPage() {
 
       <div className={`${cardClass} max-w-lg`}>
         <h2 className="mb-3 font-bold text-slate-900">新しい学期を作成</h2>
-        <form action={createTerm} className="flex flex-col gap-3">
+        <SubmitForm
+          action={createTerm}
+          successMessage="学期を作成しました"
+          className="flex flex-col gap-3"
+        >
           <div className="flex flex-col gap-1">
             <label className={labelClass}>学期名</label>
             <input
@@ -124,7 +132,7 @@ export default async function TermsPage() {
               作成
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </div>
     </div>
   );

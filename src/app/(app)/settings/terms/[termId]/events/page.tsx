@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import SubmitForm from "@/components/SubmitForm";
 import { saveEvent, deleteEvent } from "./actions";
 import {
   cardClass,
@@ -144,7 +145,11 @@ function EventForm({
   selectedPeriods?: number[];
 }) {
   return (
-      <form action={saveEvent} className="flex flex-col gap-3">
+      <SubmitForm
+        action={saveEvent}
+        successMessage={event ? "行事を更新しました" : "行事を追加しました"}
+        className="flex flex-col gap-3"
+      >
         <input type="hidden" name="term_id" value={termId} />
         {event && <input type="hidden" name="event_id" value={event.id} />}
         <div className="flex flex-col gap-1">
@@ -239,7 +244,7 @@ function EventForm({
             保存
           </button>
         </div>
-      </form>
+      </SubmitForm>
   );
 }
 
