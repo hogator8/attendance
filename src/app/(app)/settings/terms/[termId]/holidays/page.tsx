@@ -73,7 +73,7 @@ export default async function HolidaysSettingsPage({
             <input
               type="color"
               name="color_hex"
-              defaultValue="#fde68a"
+              defaultValue="#FFCCCC"
               className="h-9 w-14"
             />
           </div>
