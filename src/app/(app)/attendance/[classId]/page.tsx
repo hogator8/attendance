@@ -5,7 +5,7 @@ import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessClass } from "@/lib/permissions";
 import { getHomeroomRoster, getElectiveRoster, getElectiveOverlapForSlot } from "@/lib/roster";
-import { todayISO, dayOfWeekOf, formatDateLabel } from "@/lib/date";
+import { todayISO, dayOfWeekOf, formatDateLabel, addDays } from "@/lib/date";
 import { saveAttendance } from "./actions";
 import BulkFillButton from "./BulkFillButton";
 import { inputClass, buttonPrimaryClass, buttonSecondaryClass, cardClass } from "@/lib/ui";
@@ -184,8 +184,8 @@ export default async function AttendanceInputPage({
     ]),
   );
 
-  const prevDate = shiftDate(date, -1);
-  const nextDate = shiftDate(date, 1);
+  const prevDate = addDays(date, -1);
+  const nextDate = addDays(date, 1);
 
   return (
     <div className="flex flex-col gap-6">
@@ -374,10 +374,4 @@ function StudentBadge({
       </div>
     </div>
   );
-}
-
-function shiftDate(dateISO: string, days: number): string {
-  const d = new Date(`${dateISO}T00:00:00+09:00`);
-  d.setDate(d.getDate() + days);
-  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 }
