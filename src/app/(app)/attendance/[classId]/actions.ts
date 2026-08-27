@@ -25,6 +25,25 @@ export async function saveAttendance(formData: FormData) {
     throw new Error("このクラスへの出席入力権限がありません。");
   }
 
+  // 一般教員は学期の授業期間外の日付には入力できない（管理者は制限なし）
+  if (staff.role !== "admin") {
+    const { data: cls } = await supabase
+      .from("classes")
+      .select("term_id")
+      .eq("id", classId)
+      .maybeSingle();
+    const { data: term } = cls
+      ? await supabase
+          .from("terms")
+          .select("start_date, end_date")
+          .eq("id", cls.term_id)
+          .maybeSingle()
+      : { data: null };
+    if (term && (date < term.start_date || date > term.end_date)) {
+      throw new Error("授業期間外のため出席を入力できません。");
+    }
+  }
+
   type AttUpsert = {
     student_id: string;
     class_id: string;

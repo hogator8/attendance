@@ -25,10 +25,10 @@ export default async function AttendanceInputPage({
 
   const { data: cls } = await supabase
     .from("classes")
-    .select("*")
+    .select("*, term:terms(*)")
     .eq("id", classId)
     .maybeSingle();
-  if (!cls) notFound();
+  if (!cls || !cls.term) notFound();
 
   const allowed = await canAccessClass(supabase, staff, classId, "input");
   if (!allowed) {
@@ -38,6 +38,49 @@ export default async function AttendanceInputPage({
         <Link href="/attendance" className="ml-1 underline">
           出席入力トップに戻る
         </Link>
+      </div>
+    );
+  }
+
+  const prevDate = addDays(date, -1);
+  const nextDate = addDays(date, 1);
+
+  const dateNav = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">{cls.name}</h1>
+        <p className="text-sm text-slate-500">出席入力 － {formatDateLabel(date)}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Link href={`/attendance/${classId}?date=${prevDate}`} className={buttonSecondaryClass}>
+          前日
+        </Link>
+        <form action={`/attendance/${classId}`} className="flex items-center gap-2">
+          <input type="date" name="date" defaultValue={date} className={inputClass} />
+          <button type="submit" className={buttonSecondaryClass}>
+            表示
+          </button>
+        </form>
+        <Link href={`/attendance/${classId}?date=${nextDate}`} className={buttonSecondaryClass}>
+          翌日
+        </Link>
+      </div>
+    </div>
+  );
+
+  // 一般教員は学期の授業期間外の日付を操作できない（管理者は制限なし）
+  const isOutOfTerm = date < cls.term.start_date || date > cls.term.end_date;
+  if (staff.role !== "admin" && isOutOfTerm) {
+    return (
+      <div className="flex flex-col gap-6">
+        {dateNav}
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
+          授業期間外のため入力できません。
+          <br />
+          <span className="text-sm">
+            この学期の授業期間：{cls.term.start_date} 〜 {cls.term.end_date}
+          </span>
+        </div>
       </div>
     );
   }
@@ -184,31 +227,9 @@ export default async function AttendanceInputPage({
     ]),
   );
 
-  const prevDate = addDays(date, -1);
-  const nextDate = addDays(date, 1);
-
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">{cls.name}</h1>
-          <p className="text-sm text-slate-500">出席入力 － {formatDateLabel(date)}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href={`/attendance/${classId}?date=${prevDate}`} className={buttonSecondaryClass}>
-            前日
-          </Link>
-          <form action={`/attendance/${classId}`} className="flex items-center gap-2">
-            <input type="date" name="date" defaultValue={date} className={inputClass} />
-            <button type="submit" className={buttonSecondaryClass}>
-              表示
-            </button>
-          </form>
-          <Link href={`/attendance/${classId}?date=${nextDate}`} className={buttonSecondaryClass}>
-            翌日
-          </Link>
-        </div>
-      </div>
+      {dateNav}
 
       {holiday && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
