@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import SubmitForm from "@/components/SubmitForm";
 import { addHoliday, deleteHoliday, importHolidaysCsv } from "./actions";
 import {
   cardClass,
@@ -53,7 +54,11 @@ export default async function HolidaysSettingsPage({
 
       <div className={`${cardClass} max-w-lg`}>
         <h2 className="mb-3 font-bold text-slate-900">休業日を追加</h2>
-        <form action={addHoliday} className="flex flex-wrap items-end gap-3">
+        <SubmitForm
+          action={addHoliday}
+          successMessage="休業日を追加しました"
+          className="flex flex-wrap items-end gap-3"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <div className="flex flex-col gap-1">
             <label className={labelClass}>日付</label>
@@ -80,7 +85,7 @@ export default async function HolidaysSettingsPage({
           <button type="submit" className={buttonPrimaryClass}>
             追加
           </button>
-        </form>
+        </SubmitForm>
       </div>
 
       <div className={`${cardClass} max-w-lg`}>
@@ -88,7 +93,11 @@ export default async function HolidaysSettingsPage({
         <p className="mb-3 text-xs text-slate-500">
           1行につき「YYYY-MM-DD,項目名,色(任意・#RRGGBB)」の形式で入力してください。
         </p>
-        <form action={importHolidaysCsv} className="flex flex-col gap-3">
+        <SubmitForm
+          action={importHolidaysCsv}
+          successMessage="CSVを一括登録しました"
+          className="flex flex-col gap-3"
+        >
           <input type="hidden" name="term_id" value={termId} />
           <textarea
             name="csv"
@@ -101,7 +110,7 @@ export default async function HolidaysSettingsPage({
               一括登録
             </button>
           </div>
-        </form>
+        </SubmitForm>
       </div>
 
       <div className="overflow-x-auto">

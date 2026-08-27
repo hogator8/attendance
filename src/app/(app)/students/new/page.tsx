@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
+import SubmitForm from "@/components/SubmitForm";
 import { createStudent } from "./actions";
 import { cardClass, inputClass, labelClass, buttonPrimaryClass } from "@/lib/ui";
 
@@ -15,8 +16,9 @@ export default async function NewStudentPage() {
         <h1 className="mt-1 text-xl font-bold text-slate-900">生徒の新規登録</h1>
       </div>
 
-      <form
+      <SubmitForm
         action={createStudent}
+        successMessage="生徒を登録しました"
         encType="multipart/form-data"
         className={`${cardClass} flex max-w-md flex-col gap-3`}
       >
@@ -50,7 +52,7 @@ export default async function NewStudentPage() {
             登録
           </button>
         </div>
-      </form>
+      </SubmitForm>
     </div>
   );
 }

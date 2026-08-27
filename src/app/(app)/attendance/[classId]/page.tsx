@@ -8,6 +8,7 @@ import { getHomeroomRoster, getElectiveRoster, getElectiveOverlapForSlot } from 
 import { todayISO, dayOfWeekOf, formatDateLabel, addDays } from "@/lib/date";
 import { saveAttendance } from "./actions";
 import BulkFillButton from "./BulkFillButton";
+import SubmitForm from "@/components/SubmitForm";
 import { inputClass, buttonPrimaryClass, buttonSecondaryClass, cardClass } from "@/lib/ui";
 
 export default async function AttendanceInputPage({
@@ -240,7 +241,11 @@ export default async function AttendanceInputPage({
       {roster.length === 0 ? (
         <p className="text-sm text-slate-500">この日時点で在籍している学生がいません。</p>
       ) : (
-        <form action={saveAttendance} className="flex flex-col gap-8">
+        <SubmitForm
+          action={saveAttendance}
+          successMessage="出席を保存しました"
+          className="flex flex-col gap-8"
+        >
           <input type="hidden" name="class_id" value={classId} />
           <input type="hidden" name="date" value={date} />
 
@@ -362,7 +367,7 @@ export default async function AttendanceInputPage({
               保存
             </button>
           </div>
-        </form>
+        </SubmitForm>
       )}
     </div>
   );
