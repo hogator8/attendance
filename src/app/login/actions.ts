@@ -24,6 +24,13 @@ export async function signIn(
   });
 
   if (error) {
+    // ユーザーへは詳細を出さず汎用メッセージのみ表示するが、
+    // 原因調査のため実際のエラー内容はサーバーログ（Vercel Runtime Logs等）に残す。
+    console.error("[auth] signInWithPassword failed", {
+      status: error.status,
+      code: error.code,
+      message: error.message,
+    });
     return { error: "メールアドレスまたはパスワードが正しくありません。" };
   }
 
