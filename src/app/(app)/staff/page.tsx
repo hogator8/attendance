@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveTerm } from "@/lib/terms";
 import { createStaffAccount } from "./actions";
+import { savePermissions } from "./[staffId]/actions";
 import {
   cardClass,
   inputClass,
   labelClass,
   buttonPrimaryClass,
+  buttonSecondaryClass,
   tableClass,
   thClass,
   tdClass,
@@ -15,6 +18,7 @@ import {
 export default async function StaffPage() {
   await requireAdmin();
   const supabase = await createClient();
+  const term = await getActiveTerm(supabase);
 
   const { data: staffList } = await supabase
     .from("staff")
@@ -22,50 +26,120 @@ export default async function StaffPage() {
     .order("role")
     .order("name");
 
+  const { data: classes } = term
+    ? await supabase
+        .from("classes")
+        .select("*")
+        .eq("term_id", term.id)
+        .order("type")
+        .order("name")
+    : { data: [] };
+
+  const { data: permissions } = await supabase
+    .from("staff_class_permissions")
+    .select("*");
+  const permByStaffClass = new Map(
+    (permissions ?? []).map((p) => [`${p.staff_id}_${p.class_id}`, p]),
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-bold text-slate-900">教員管理</h1>
 
-      <div className="overflow-x-auto">
-        <table className={tableClass}>
-          <thead>
-            <tr>
-              <th className={thClass}>氏名</th>
-              <th className={thClass}>メールアドレス</th>
-              <th className={thClass}>役職</th>
-              <th className={thClass}>雇用形態</th>
-              <th className={thClass}>クラス権限</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(staffList ?? []).map((s) => (
-              <tr key={s.id}>
-                <td className={tdClass}>{s.name}</td>
-                <td className={tdClass}>{s.email}</td>
-                <td className={tdClass}>
-                  {s.role === "admin" ? "管理者" : "教員"}
-                </td>
-                <td className={tdClass}>{s.employment_type ?? "-"}</td>
-                <td className={tdClass}>
-                  <Link
-                    href={`/staff/${s.id}`}
-                    className="text-blue-600 hover:underline"
-                  >
-                    編集・権限設定
-                  </Link>
-                </td>
-              </tr>
-            ))}
-            {(staffList ?? []).length === 0 && (
+      {!term ? (
+        <p className="text-sm text-slate-500">
+          アクティブな学期がないため、クラス権限は設定できません。
+        </p>
+      ) : (classes ?? []).length === 0 ? (
+        <p className="text-sm text-slate-500">クラスがまだ登録されていません。</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className={tableClass}>
+            <thead>
               <tr>
-                <td className={tdClass} colSpan={5}>
-                  教員が登録されていません。
-                </td>
+                <th className={thClass}>氏名</th>
+                <th className={thClass}>メールアドレス</th>
+                <th className={thClass}>役職</th>
+                <th className={thClass}>雇用形態</th>
+                {(classes ?? []).map((c) => (
+                  <th key={c.id} className={thClass}>
+                    {c.name}
+                    <br />
+                    <span className="text-[10px] font-normal text-slate-400">
+                      {c.type === "homeroom" ? "ホームルーム" : "選択科目"}
+                    </span>
+                  </th>
+                ))}
+                <th className={thClass}></th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {(staffList ?? []).map((s) => (
+                <tr key={s.id}>
+                  <td className={tdClass}>
+                    <Link
+                      href={`/staff/${s.id}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {s.name}
+                    </Link>
+                  </td>
+                  <td className={tdClass}>{s.email}</td>
+                  <td className={tdClass}>
+                    {s.role === "admin" ? "管理者" : "教員"}
+                  </td>
+                  <td className={tdClass}>{s.employment_type ?? "-"}</td>
+                  {s.role === "admin" ? (
+                    <td className={tdClass} colSpan={(classes ?? []).length}>
+                      <span className="text-xs text-slate-400">
+                        管理者は常に全クラスへアクセス可能
+                      </span>
+                    </td>
+                  ) : (
+                    <PermissionCells
+                      staffId={s.id}
+                      classes={classes ?? []}
+                      permByStaffClass={permByStaffClass}
+                    />
+                  )}
+                  <td className={tdClass}>
+                    {s.role !== "admin" && (
+                      <button
+                        type="submit"
+                        form={`perm-form-${s.id}`}
+                        className={buttonSecondaryClass}
+                      >
+                        保存
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {(staffList ?? []).length === 0 && (
+                <tr>
+                  <td className={tdClass} colSpan={5 + (classes ?? []).length}>
+                    教員が登録されていません。
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 各教員のクラス権限フォーム本体（表の外に配置し、form属性でセル内の入力と紐付ける） */}
+      {(staffList ?? [])
+        .filter((s) => s.role !== "admin")
+        .map((s) => (
+          <form
+            key={s.id}
+            id={`perm-form-${s.id}`}
+            action={savePermissions}
+            className="hidden"
+          >
+            <input type="hidden" name="staff_id" value={s.id} />
+          </form>
+        ))}
 
       <div className={`${cardClass} max-w-md`}>
         <h2 className="mb-3 font-bold text-slate-900">教員アカウントを作成</h2>
@@ -116,5 +190,49 @@ export default async function StaffPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+function PermissionCells({
+  staffId,
+  classes,
+  permByStaffClass,
+}: {
+  staffId: string;
+  classes: { id: string; name: string }[];
+  permByStaffClass: Map<
+    string,
+    { can_input: boolean; can_view_summary: boolean }
+  >;
+}) {
+  return (
+    <>
+      {classes.map((c) => {
+        const perm = permByStaffClass.get(`${staffId}_${c.id}`);
+        return (
+          <td key={c.id} className={`${tdClass} text-center`}>
+            <input type="hidden" form={`perm-form-${staffId}`} name="class_id" value={c.id} />
+            <label className="mr-2 inline-flex items-center gap-1 text-xs">
+              <input
+                type="checkbox"
+                form={`perm-form-${staffId}`}
+                name={`input_${c.id}`}
+                defaultChecked={perm?.can_input ?? false}
+              />
+              入
+            </label>
+            <label className="inline-flex items-center gap-1 text-xs">
+              <input
+                type="checkbox"
+                form={`perm-form-${staffId}`}
+                name={`view_${c.id}`}
+                defaultChecked={perm?.can_view_summary ?? false}
+              />
+              閲
+            </label>
+          </td>
+        );
+      })}
+    </>
   );
 }
