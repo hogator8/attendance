@@ -7,3 +7,17 @@ body {
   background-color: #f8fafc;
   color: #0f172a;
 }
+
+/* Tailwind v4のPreflightはbutton要素にcursor: pointerを付与しなくなったため、
+   クリック可能な要素で一貫してポインターカーソルになるよう明示的に指定する。 */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
