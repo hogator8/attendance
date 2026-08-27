@@ -1,0 +1,128 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { syncElectiveSlotFlags } from "@/lib/timetable";
+
+const MAX_PERIODS = 10;
+const DAYS = [1, 2, 3, 4, 5, 6, 0]; // 月火水木金土日（表示順）。値はJSのgetDay()と同じ0=日〜6=土
+
+export async function updateClassName(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const classId = String(formData.get("class_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!classId || !name) throw new Error("名称を入力してください。");
+
+  const { error } = await supabase
+    .from("classes")
+    .update({ name })
+    .eq("id", classId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/classes/${classId}`);
+  revalidatePath("/classes");
+}
+
+export async function createTimetableVersion(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const classId = String(formData.get("class_id") ?? "");
+  const effectiveFrom = String(formData.get("effective_from") ?? "");
+  if (!classId || !effectiveFrom) {
+    throw new Error("適用開始日を入力してください。");
+  }
+
+  // 既存の「無期限（effective_toがNULL）」バージョンがあれば、新バージョンの前日で区切る
+  const { data: openVersions } = await supabase
+    .from("timetable_versions")
+    .select("id, effective_from")
+    .eq("class_id", classId)
+    .is("effective_to", null);
+
+  for (const v of openVersions ?? []) {
+    if (v.effective_from >= effectiveFrom) {
+      throw new Error(
+        "既存の時間割バージョンより後の日付を指定してください。",
+      );
+    }
+    const prevDay = new Date(`${effectiveFrom}T00:00:00+09:00`);
+    prevDay.setDate(prevDay.getDate() - 1);
+    const effectiveTo = prevDay.toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Tokyo",
+    });
+    await supabase
+      .from("timetable_versions")
+      .update({ effective_to: effectiveTo })
+      .eq("id", v.id);
+  }
+
+  const { data, error } = await supabase
+    .from("timetable_versions")
+    .insert({ class_id: classId, effective_from: effectiveFrom })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/classes/${classId}`);
+  redirect(`/classes/${classId}?edit=${data.id}`);
+}
+
+export async function saveTimetableSlots(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const classId = String(formData.get("class_id") ?? "");
+  const termId = String(formData.get("term_id") ?? "");
+  const versionId = String(formData.get("timetable_version_id") ?? "");
+  if (!classId || !termId || !versionId) {
+    throw new Error("時間割バージョンが不正です。");
+  }
+
+  const rows: {
+    timetable_version_id: string;
+    day_of_week: number;
+    period_no: number;
+    period_label: string;
+    subject: string;
+    teacher_name: string | null;
+  }[] = [];
+
+  for (let p = 1; p <= MAX_PERIODS; p++) {
+    const periodLabelRaw = String(formData.get(`period_label_${p}`) ?? "").trim();
+    const periodLabel = periodLabelRaw || `${p}限`;
+
+    for (const d of DAYS) {
+      const subject = String(formData.get(`subject_${d}_${p}`) ?? "").trim();
+      if (!subject) continue;
+      const teacher = String(formData.get(`teacher_${d}_${p}`) ?? "").trim();
+      rows.push({
+        timetable_version_id: versionId,
+        day_of_week: d,
+        period_no: p,
+        period_label: periodLabel,
+        subject,
+        teacher_name: teacher || null,
+      });
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("timetable_slots")
+    .delete()
+    .eq("timetable_version_id", versionId);
+  if (deleteError) throw new Error(deleteError.message);
+
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase
+      .from("timetable_slots")
+      .insert(rows);
+    if (insertError) throw new Error(insertError.message);
+  }
+
+  await syncElectiveSlotFlags(supabase, termId);
+
+  revalidatePath(`/classes/${classId}`);
+}
