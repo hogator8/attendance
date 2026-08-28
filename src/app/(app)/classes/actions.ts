@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { withFlash } from "@/lib/flash";
 import type { ClassType } from "@/lib/supabase/database.types";
 
 export async function createClass(formData: FormData) {
@@ -26,5 +27,5 @@ export async function createClass(formData: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/classes");
-  redirect(`/classes/${data.id}`);
+  redirect(withFlash(`/classes/${data.id}`, "クラスを作成しました"));
 }

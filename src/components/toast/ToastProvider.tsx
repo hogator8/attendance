@@ -1,6 +1,15 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import {
+  Suspense,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type ToastType = "success" | "error";
 
@@ -28,6 +37,36 @@ export function useToast(): ToastContextValue {
 }
 
 const DISPLAY_MS = 4000;
+const FLASH_PARAM = "flash";
+
+// redirect()を伴うServer Action（新規作成後に詳細ページへ遷移する等）は、
+// 遷移元のページでトーストを表示する機会がない（redirect()以降のコードは
+// 実行されないため）。遷移先URLに ?flash=メッセージ を付与しておくことで、
+// 遷移後にこのコンポーネントが検知してトーストを表示し、URLからパラメータを
+// 取り除く。
+function FlashToastListener() {
+  const toast = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const flashMessage = searchParams.get(FLASH_PARAM);
+
+  useEffect(() => {
+    if (!flashMessage) return;
+    toast.success(flashMessage);
+    const params = new URLSearchParams(searchParams);
+    params.delete(FLASH_PARAM);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+    // flashMessage の有無だけを見て一度だけ実行したいため、
+    // toast/router/pathname/searchParams はあえて依存に含めない。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flashMessage]);
+
+  return null;
+}
 
 export default function ToastProvider({
   children,
@@ -57,6 +96,9 @@ export default function ToastProvider({
 
   return (
     <ToastContext.Provider value={value}>
+      <Suspense fallback={null}>
+        <FlashToastListener />
+      </Suspense>
       {children}
       <div
         aria-live="polite"

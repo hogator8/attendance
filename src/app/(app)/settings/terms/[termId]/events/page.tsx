@@ -109,13 +109,13 @@ export default async function EventsSettingsPage({
                 selectedClasses={classesByEvent.get(event.id) ?? []}
                 selectedPeriods={periodsByEvent.get(event.id) ?? []}
               />
-              <form action={deleteEvent}>
+              <SubmitForm action={deleteEvent} successMessage="行事を削除しました">
                 <input type="hidden" name="id" value={event.id} />
                 <input type="hidden" name="term_id" value={termId} />
                 <button type="submit" className={buttonDangerClass}>
                   この行事を削除
                 </button>
-              </form>
+              </SubmitForm>
             </div>
           </details>
         ))}

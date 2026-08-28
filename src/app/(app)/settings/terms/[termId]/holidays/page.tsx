@@ -134,13 +134,13 @@ export default async function HolidaysSettingsPage({
                   )}
                 </td>
                 <td className={tdClass}>
-                  <form action={deleteHoliday}>
+                  <SubmitForm action={deleteHoliday} successMessage="休業日を削除しました">
                     <input type="hidden" name="id" value={h.id} />
                     <input type="hidden" name="term_id" value={termId} />
                     <button type="submit" className={buttonDangerClass}>
                       削除
                     </button>
-                  </form>
+                  </SubmitForm>
                 </td>
               </tr>
             ))}
