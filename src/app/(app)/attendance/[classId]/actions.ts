@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessClass } from "@/lib/permissions";
+import { canInputClass } from "@/lib/permissions";
 
 // フィールド名の規則:
 //   通常時限   : att_P{periodNo}_{studentId} = symbolId（空文字列 = 記録なし）
@@ -20,7 +20,7 @@ export async function saveAttendance(formData: FormData) {
   const date = String(formData.get("date") ?? "");
   if (!classId || !date) throw new Error("クラス・日付が不正です。");
 
-  const allowed = await canAccessClass(supabase, staff, classId, "input");
+  const allowed = await canInputClass(supabase, staff, classId);
   if (!allowed) {
     throw new Error("このクラスへの出席入力権限がありません。");
   }

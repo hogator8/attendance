@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTerm } from "@/lib/terms";
-import { getAccessibleClasses } from "@/lib/permissions";
+import { getSummaryAccessibleClasses } from "@/lib/permissions";
 import { cardClass } from "@/lib/ui";
 
 export default async function SummarySelectPage() {
@@ -14,7 +14,7 @@ export default async function SummarySelectPage() {
     return <p className="text-sm text-slate-500">アクティブな学期がありません。</p>;
   }
 
-  const classes = await getAccessibleClasses(supabase, staff, term.id, "view");
+  const classes = await getSummaryAccessibleClasses(supabase, staff, term.id);
 
   return (
     <div className="flex flex-col gap-6">

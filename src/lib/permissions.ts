@@ -5,15 +5,51 @@ import type { CurrentStaff } from "@/lib/auth";
 type Client = SupabaseClient<Database>;
 type ClassRow = Database["public"]["Tables"]["classes"]["Row"];
 
-export type PermissionNeed = "input" | "view";
+export type PermissionFlag = keyof Omit<
+  Database["public"]["Tables"]["staff_permissions"]["Row"],
+  "staff_id"
+>;
 
-// staff がアクセス可能なクラス一覧（termIdで絞り込み）を返す。
-// admin は常に全クラス、teacher は staff_class_permissions で許可されたクラスのみ。
-export async function getAccessibleClasses(
+// staff_permissions の機能単位フラグを確認する。admin は常に true。
+export async function hasPermission(
+  supabase: Client,
+  staff: CurrentStaff,
+  flag: PermissionFlag,
+): Promise<boolean> {
+  if (staff.role === "admin") return true;
+
+  const { data } = await supabase
+    .from("staff_permissions")
+    .select(flag)
+    .eq("staff_id", staff.id)
+    .maybeSingle();
+
+  return !!(data as Record<string, boolean> | null)?.[flag];
+}
+
+// 指定クラスへの出席入力が可能かどうか（クラス単位の権限）。admin は常に true。
+export async function canInputClass(
+  supabase: Client,
+  staff: CurrentStaff,
+  classId: string,
+): Promise<boolean> {
+  if (staff.role === "admin") return true;
+
+  const { data } = await supabase
+    .from("staff_class_permissions")
+    .select("can_input")
+    .eq("staff_id", staff.id)
+    .eq("class_id", classId)
+    .maybeSingle();
+
+  return !!data?.can_input;
+}
+
+// staff が出席入力可能なクラス一覧（termIdで絞り込み）。
+export async function getInputAccessibleClasses(
   supabase: Client,
   staff: CurrentStaff,
   termId: string,
-  need: PermissionNeed,
 ): Promise<ClassRow[]> {
   if (staff.role === "admin") {
     const { data, error } = await supabase
@@ -26,12 +62,11 @@ export async function getAccessibleClasses(
     return data ?? [];
   }
 
-  const column = need === "input" ? "can_input" : "can_view_summary";
   const { data, error } = await supabase
     .from("staff_class_permissions")
-    .select("can_input, can_view_summary, class:classes(*)")
+    .select("class:classes(*)")
     .eq("staff_id", staff.id)
-    .eq(column, true);
+    .eq("can_input", true);
   if (error) throw error;
 
   return (data ?? [])
@@ -40,21 +75,22 @@ export async function getAccessibleClasses(
     .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 }
 
-export async function canAccessClass(
+// can_view_summary を持つ staff が閲覧可能なクラス一覧（全体権限のため、
+// 権限があれば term 内の全クラス、なければ空配列）。
+export async function getSummaryAccessibleClasses(
   supabase: Client,
   staff: CurrentStaff,
-  classId: string,
-  need: PermissionNeed,
-): Promise<boolean> {
-  if (staff.role === "admin") return true;
+  termId: string,
+): Promise<ClassRow[]> {
+  const allowed = await hasPermission(supabase, staff, "can_view_summary");
+  if (!allowed) return [];
 
-  const { data } = await supabase
-    .from("staff_class_permissions")
-    .select("can_input, can_view_summary")
-    .eq("staff_id", staff.id)
-    .eq("class_id", classId)
-    .maybeSingle();
-
-  if (!data) return false;
-  return need === "input" ? data.can_input : data.can_view_summary;
+  const { data, error } = await supabase
+    .from("classes")
+    .select("*")
+    .eq("term_id", termId)
+    .order("type")
+    .order("name");
+  if (error) throw error;
+  return data ?? [];
 }

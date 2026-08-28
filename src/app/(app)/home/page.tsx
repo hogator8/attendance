@@ -2,7 +2,10 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTerm } from "@/lib/terms";
-import { getAccessibleClasses } from "@/lib/permissions";
+import {
+  getInputAccessibleClasses,
+  getSummaryAccessibleClasses,
+} from "@/lib/permissions";
 import { todayISO, formatDateLabel } from "@/lib/date";
 
 export default async function HomePage() {
@@ -29,17 +32,15 @@ export default async function HomePage() {
     );
   }
 
-  const inputClasses = await getAccessibleClasses(
+  const inputClasses = await getInputAccessibleClasses(
     supabase,
     staff,
     term.id,
-    "input",
   );
-  const viewClasses = await getAccessibleClasses(
+  const viewClasses = await getSummaryAccessibleClasses(
     supabase,
     staff,
     term.id,
-    "view",
   );
 
   const viewOnlyIds = new Set(

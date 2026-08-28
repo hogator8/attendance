@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTerm } from "@/lib/terms";
-import { getAccessibleClasses } from "@/lib/permissions";
+import { getInputAccessibleClasses } from "@/lib/permissions";
 import { todayISO } from "@/lib/date";
 import { cardClass } from "@/lib/ui";
 
@@ -16,7 +16,7 @@ export default async function AttendanceSelectPage() {
     return <p className="text-sm text-slate-500">アクティブな学期がありません。</p>;
   }
 
-  const classes = await getAccessibleClasses(supabase, staff, term.id, "input");
+  const classes = await getInputAccessibleClasses(supabase, staff, term.id);
   const homerooms = classes.filter((c) => c.type === "homeroom");
   const electives = classes.filter((c) => c.type === "elective");
 

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessClass } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 import { monthBuckets } from "@/lib/date";
 import {
   buildStudentSummaries,
@@ -33,7 +33,7 @@ export default async function SummaryPage({
   if (!cls || !cls.term) notFound();
   const term = cls.term;
 
-  const allowed = await canAccessClass(supabase, staff, classId, "view");
+  const allowed = await hasPermission(supabase, staff, "can_view_summary");
   if (!allowed) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">

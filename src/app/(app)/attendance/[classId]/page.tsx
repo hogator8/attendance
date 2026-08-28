@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessClass } from "@/lib/permissions";
+import { canInputClass } from "@/lib/permissions";
 import { getHomeroomRoster, getElectiveRoster, getElectiveOverlapForSlot } from "@/lib/roster";
 import { todayISO, dayOfWeekOf, formatDateLabel, addDays } from "@/lib/date";
 import { saveAttendance } from "./actions";
@@ -31,7 +31,7 @@ export default async function AttendanceInputPage({
     .maybeSingle();
   if (!cls || !cls.term) notFound();
 
-  const allowed = await canAccessClass(supabase, staff, classId, "input");
+  const allowed = await canInputClass(supabase, staff, classId);
   if (!allowed) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">

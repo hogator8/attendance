@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission, type PermissionFlag } from "@/lib/permissions";
 import type { Database } from "@/lib/supabase/database.types";
 
 export type CurrentStaff = Database["public"]["Tables"]["staff"]["Row"];
@@ -37,6 +38,22 @@ export async function requireStaff(): Promise<CurrentStaff> {
 export async function requireAdmin(): Promise<CurrentStaff> {
   const staff = await requireStaff();
   if (staff.role !== "admin") {
+    redirect("/home");
+  }
+  return staff;
+}
+
+// 機能単位の全体権限（staff_permissions）を要求する画面・操作の先頭で呼ぶ。
+// admin は常に許可。権限がなければホームへ戻す。
+export async function requirePermission(
+  flag: PermissionFlag,
+): Promise<CurrentStaff> {
+  const staff = await requireStaff();
+  if (staff.role === "admin") return staff;
+
+  const supabase = await createClient();
+  const allowed = await hasPermission(supabase, staff, flag);
+  if (!allowed) {
     redirect("/home");
   }
   return staff;
