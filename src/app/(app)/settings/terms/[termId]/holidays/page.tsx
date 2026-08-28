@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import SubmitForm from "@/components/SubmitForm";
+import FileInputButton from "@/components/FileInputButton";
 import { addHoliday, deleteHoliday, importHolidaysCsv } from "./actions";
 import {
   cardClass,
@@ -91,20 +92,16 @@ export default async function HolidaysSettingsPage({
       <div className={`${cardClass} max-w-lg`}>
         <h2 className="mb-1 font-bold text-slate-900">CSV一括登録</h2>
         <p className="mb-3 text-xs text-slate-500">
-          1行につき「YYYY-MM-DD,項目名,色(任意・#RRGGBB)」の形式で入力してください。
+          1行につき「YYYY-MM-DD,項目名,色(任意・#RRGGBB)」の形式のCSVファイルを選択してください。
         </p>
         <SubmitForm
           action={importHolidaysCsv}
           successMessage="CSVを一括登録しました"
+          encType="multipart/form-data"
           className="flex flex-col gap-3"
         >
           <input type="hidden" name="term_id" value={termId} />
-          <textarea
-            name="csv"
-            rows={5}
-            placeholder={"2026-08-01,夏季休暇,#fde68a\n2026-08-02,夏季休暇,#fde68a"}
-            className={`${inputClass} font-mono`}
-          />
+          <FileInputButton name="csv" accept=".csv,text/csv" />
           <div>
             <button type="submit" className={buttonPrimaryClass}>
               一括登録

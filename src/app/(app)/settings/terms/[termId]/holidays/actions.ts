@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readCsvFile } from "@/lib/csv";
 
 export async function addHoliday(formData: FormData) {
   await requirePermission("can_manage_settings");
@@ -43,10 +44,8 @@ export async function importHolidaysCsv(formData: FormData) {
   await requirePermission("can_manage_settings");
   const supabase = await createClient();
   const termId = String(formData.get("term_id") ?? "");
-  const csv = String(formData.get("csv") ?? "");
-  if (!termId || !csv.trim()) {
-    throw new Error("CSVを入力してください。");
-  }
+  if (!termId) throw new Error("学期IDが不正です。");
+  const csv = await readCsvFile(formData);
 
   const rows = csv
     .split(/\r?\n/)

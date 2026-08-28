@@ -68,14 +68,10 @@ export default async function NewStudentPage() {
         <SubmitForm
           action={importStudentsCsv}
           successMessage="CSVを一括登録しました"
+          encType="multipart/form-data"
           className="flex flex-col gap-3"
         >
-          <textarea
-            name="csv"
-            rows={6}
-            placeholder={"S2026001,山田太郎,やまだたろう,日本,2026-04-01,初級A"}
-            className={`${inputClass} font-mono`}
-          />
+          <FileInputButton name="csv" accept=".csv,text/csv" />
           <div>
             <button type="submit" className={buttonPrimaryClass}>
               一括登録

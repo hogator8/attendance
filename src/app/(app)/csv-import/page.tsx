@@ -2,6 +2,7 @@ import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import SubmitForm from "@/components/SubmitForm";
+import FileInputButton from "@/components/FileInputButton";
 import {
   importHistoricalMonthlySummariesCsv,
   importHistoricalAttendanceCsv,
@@ -48,20 +49,23 @@ export default async function CsvImportPage() {
         <p className="mb-3 text-xs text-slate-500">
           日次データを持たず、学生×年月ごとの集計値のみを取り込みます。この月は集計画面の月別出席率にもそのまま反映されます（日次ドリルダウンは行いません）。
           <br />
-          1行につき「学籍番号,年月(YYYY-MM),要出席日数,出席日数,欠席日数,遅刻回数,早退回数」の形式で入力してください。
+          「学籍番号,年月(YYYY-MM),要出席日数,出席日数,欠席日数,遅刻回数,早退回数,公欠日数,除外日数」の形式のCSVファイルを選択してください。
+          <br />
+          <a
+            href="/csv-import/templates/monthly"
+            className="text-blue-600 underline"
+          >
+            テンプレートCSVをダウンロード
+          </a>
         </p>
         {canManageStudents ? (
           <SubmitForm
             action={importHistoricalMonthlySummariesCsv}
             successMessage="月別集計を取り込みました"
+            encType="multipart/form-data"
             className="flex flex-col gap-3"
           >
-            <textarea
-              name="csv"
-              rows={6}
-              placeholder={"S2020001,2020-04,20,18,2,1,0"}
-              className={`${inputClass} font-mono`}
-            />
+            <FileInputButton name="csv" accept=".csv,text/csv" />
             <div>
               <button type="submit" className={buttonPrimaryClass}>
                 取り込む
@@ -78,7 +82,11 @@ export default async function CsvImportPage() {
         <p className="mb-3 text-xs text-slate-500">
           出席記号設定の記号を使って、日次の出席データをそのまま取り込みます。
           <br />
-          1行につき「学籍番号,日付(YYYY-MM-DD),時限,記号,時刻(任意),理由(任意)」の形式で入力してください。記号は取り込み先クラスの学期の出席記号設定と一致させてください。
+          「学籍番号,日付(YYYY-MM-DD),時限,記号,時刻(任意),理由(任意)」の形式のCSVファイルを選択してください。記号は取り込み先クラスの学期の出席記号設定と一致させてください。
+          <br />
+          <a href="/csv-import/templates/daily" className="text-blue-600 underline">
+            テンプレートCSVをダウンロード
+          </a>
         </p>
         {inputtableClasses.length === 0 ? (
           <p className="text-sm text-slate-500">
@@ -88,6 +96,7 @@ export default async function CsvImportPage() {
           <SubmitForm
             action={importHistoricalAttendanceCsv}
             successMessage="日次データを取り込みました"
+            encType="multipart/form-data"
             className="flex flex-col gap-3"
           >
             <div className="flex flex-col gap-1">
@@ -101,12 +110,7 @@ export default async function CsvImportPage() {
                 ))}
               </select>
             </div>
-            <textarea
-              name="csv"
-              rows={6}
-              placeholder={"S2020001,2020-04-06,1,〇,,\nS2020001,2020-04-06,2,遅,09:15,電車遅延"}
-              className={`${inputClass} font-mono`}
-            />
+            <FileInputButton name="csv" accept=".csv,text/csv" />
             <div>
               <button type="submit" className={buttonPrimaryClass}>
                 取り込む
