@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { uploadStudentPhoto } from "@/lib/storage";
 import { getActiveTerms } from "@/lib/terms";
 import { readCsvFile } from "@/lib/csv";
+import { withFlash } from "@/lib/flash";
 
 export async function createStudent(formData: FormData) {
   await requirePermission("can_manage_students");
@@ -52,7 +53,8 @@ export async function createStudent(formData: FormData) {
       .eq("id", student.id);
   }
 
-  redirect(`/students/${student.id}`);
+  revalidatePath("/students");
+  redirect(withFlash(`/students/${student.id}`, "学生を登録しました"));
 }
 
 // CSV一括登録：1行につき

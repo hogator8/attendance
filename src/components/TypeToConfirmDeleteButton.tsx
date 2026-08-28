@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useToast } from "./toast/ToastProvider";
 import { isNextInternalError } from "@/lib/nextInternalError";
 
@@ -27,25 +27,24 @@ export default function TypeToConfirmDeleteButton({
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [pending, setPending] = useState(false);
+  const [pending, startTransition] = useTransition();
 
-  async function handleDelete() {
-    setPending(true);
+  function handleDelete() {
     const formData = new FormData();
     for (const [key, value] of Object.entries(hiddenFields)) {
       formData.set(key, value);
     }
-    try {
-      await action(formData);
-      toast.success(successMessage);
-      setOpen(false);
-      setInput("");
-    } catch (error) {
-      if (isNextInternalError(error)) throw error;
-      toast.error(error instanceof Error ? error.message : "削除に失敗しました。");
-    } finally {
-      setPending(false);
-    }
+    startTransition(async () => {
+      try {
+        await action(formData);
+        toast.success(successMessage);
+        setOpen(false);
+        setInput("");
+      } catch (error) {
+        if (isNextInternalError(error)) throw error;
+        toast.error(error instanceof Error ? error.message : "削除に失敗しました。");
+      }
+    });
   }
 
   if (!open) {

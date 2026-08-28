@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { syncElectiveSlotFlags } from "@/lib/timetable";
 import { addDays } from "@/lib/date";
+import { withFlash } from "@/lib/flash";
 
 const MAX_PERIODS = 10;
 const DAYS = [1, 2, 3, 4, 5, 6, 0]; // 月火水木金土日（表示順）。値はJSのgetDay()と同じ0=日〜6=土
@@ -64,7 +65,7 @@ export async function createTimetableVersion(formData: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath(`/classes/${classId}`);
-  redirect(`/classes/${classId}?edit=${data.id}`);
+  redirect(withFlash(`/classes/${classId}?edit=${data.id}`, "時間割バージョンを作成しました"));
 }
 
 export async function saveTimetableSlots(formData: FormData) {
