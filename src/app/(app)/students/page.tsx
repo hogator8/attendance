@@ -135,9 +135,8 @@ export default async function StudentsPage({
                       className="h-8 w-8 rounded-full object-cover"
                     />
                   ) : (
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs text-slate-500">
-                      無
-                    </span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs text-slate-500" />
+
                   )}
                 </td>
                 <td className={tdClass}>

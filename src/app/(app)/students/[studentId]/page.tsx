@@ -12,6 +12,8 @@ import {
   updateStudentStatus,
   assignHomeroom,
   endHomeroomEnrollment,
+  editHomeroomEnrollment,
+  deleteHomeroomEnrollment,
   assignElective,
   endElective,
 } from "./actions";
@@ -21,9 +23,7 @@ import {
   labelClass,
   buttonPrimaryClass,
   buttonSecondaryClass,
-  tableClass,
-  thClass,
-  tdClass,
+  buttonDangerClass,
 } from "@/lib/ui";
 
 export default async function StudentDetailPage({
@@ -337,33 +337,147 @@ export default async function StudentDetailPage({
           </p>
         )}
 
-        <table className={tableClass}>
-          <thead>
-            <tr>
-              <th className={thClass}>クラス</th>
-              <th className={thClass}>出席番号</th>
-              <th className={thClass}>期間</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(enrollments ?? []).map((e) => (
-              <tr key={e.id}>
-                <td className={tdClass}>{e.class?.name}</td>
-                <td className={tdClass}>{e.seq_no ?? "-"}</td>
-                <td className={tdClass}>
-                  {e.valid_from} 〜 {e.valid_to ?? "現在"}
-                </td>
-              </tr>
-            ))}
-            {(enrollments ?? []).length === 0 && (
-              <tr>
-                <td className={tdClass} colSpan={3}>
-                  配属履歴がありません。
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div className="flex flex-col gap-2">
+          {(enrollments ?? []).length === 0 && (
+            <p className="text-sm text-slate-500">配属履歴がありません。</p>
+          )}
+          {(enrollments ?? []).map((e) => {
+            const classOptions =
+              e.class_id && !(homeroomClasses ?? []).some((c) => c.id === e.class_id)
+                ? [...(homeroomClasses ?? []), { id: e.class_id, name: e.class?.name ?? "(不明なクラス)" }]
+                : (homeroomClasses ?? []);
+            return (
+              <div key={e.id} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    {e.class?.name}（出席番号：{e.seq_no ?? "-"}）　{e.valid_from} 〜{" "}
+                    {e.valid_to ?? "現在"}
+                  </span>
+                  <div className="flex gap-3 text-xs">
+                    <details>
+                      <summary className="cursor-pointer text-blue-600 hover:underline">
+                        変更
+                      </summary>
+                      <SubmitForm
+                        action={editHomeroomEnrollment}
+                        successMessage="配属記録を変更しました"
+                        className="mt-2 flex w-72 flex-col gap-2 rounded-md border border-slate-200 bg-slate-50 p-3"
+                      >
+                        <input type="hidden" name="enrollment_id" value={e.id} />
+                        <input type="hidden" name="student_id" value={student.id} />
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>クラス</label>
+                          <select
+                            name="class_id"
+                            defaultValue={e.class_id}
+                            required
+                            className={inputClass}
+                          >
+                            {classOptions.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>出席番号</label>
+                          <input
+                            type="number"
+                            name="seq_no"
+                            min={1}
+                            defaultValue={e.seq_no ?? ""}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>配属開始日</label>
+                          <input
+                            type="date"
+                            name="valid_from"
+                            defaultValue={e.valid_from}
+                            required
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>配属終了日（任意）</label>
+                          <input
+                            type="date"
+                            name="valid_to"
+                            defaultValue={e.valid_to ?? ""}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>
+                            クラス・期間を変更する場合、記録済みの出席情報の扱い
+                          </label>
+                          <label className="inline-flex items-center gap-1">
+                            <input
+                              type="radio"
+                              name="attendance_handling"
+                              value="keep"
+                              defaultChecked
+                            />
+                            残す
+                          </label>
+                          <label className="inline-flex items-center gap-1">
+                            <input type="radio" name="attendance_handling" value="delete" />
+                            変更前の内容に基づく出席情報を削除する
+                          </label>
+                        </div>
+                        <div>
+                          <button type="submit" className={buttonPrimaryClass}>
+                            変更を保存
+                          </button>
+                        </div>
+                      </SubmitForm>
+                    </details>
+                    <details>
+                      <summary className="cursor-pointer text-red-600 hover:underline">
+                        削除
+                      </summary>
+                      <SubmitForm
+                        action={deleteHomeroomEnrollment}
+                        successMessage="配属記録を削除しました"
+                        className="mt-2 flex w-72 flex-col gap-2 rounded-md border border-red-200 bg-red-50 p-3"
+                      >
+                        <input type="hidden" name="enrollment_id" value={e.id} />
+                        <input type="hidden" name="student_id" value={student.id} />
+                        <p className="text-xs text-red-700">
+                          この配属記録（{e.class?.name}／{e.valid_from}〜{e.valid_to ?? "現在"}
+                          ）を完全に削除します。元に戻せません。
+                        </p>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>記録済みの出席情報の扱い</label>
+                          <label className="inline-flex items-center gap-1">
+                            <input
+                              type="radio"
+                              name="attendance_handling"
+                              value="keep"
+                              defaultChecked
+                            />
+                            残す
+                          </label>
+                          <label className="inline-flex items-center gap-1">
+                            <input type="radio" name="attendance_handling" value="delete" />
+                            この配属期間の出席情報も削除する
+                          </label>
+                        </div>
+                        <div>
+                          <button type="submit" className={buttonDangerClass}>
+                            削除する
+                          </button>
+                        </div>
+                      </SubmitForm>
+                    </details>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section className={cardClass}>
