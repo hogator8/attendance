@@ -13,15 +13,15 @@ export default function LoginForm({ next }: { next?: string }) {
       <input type="hidden" name="next" value={next ?? "/home"} />
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="email" className="text-sm font-medium text-slate-700">
-          メールアドレス
+        <label htmlFor="login_id" className="text-sm font-medium text-slate-700">
+          ログインID
         </label>
         <input
-          id="email"
-          name="email"
-          type="email"
+          id="login_id"
+          name="login_id"
+          type="text"
           required
-          autoComplete="email"
+          autoComplete="username"
           className="rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>

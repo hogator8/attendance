@@ -3,11 +3,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessClass } from "@/lib/permissions";
+import { canInputClass } from "@/lib/permissions";
 import { getHomeroomRoster, getElectiveRoster, getElectiveOverlapForSlot } from "@/lib/roster";
 import { todayISO, dayOfWeekOf, formatDateLabel, addDays } from "@/lib/date";
 import { saveAttendance } from "./actions";
 import BulkFillButton from "./BulkFillButton";
+import AttendanceSymbolCell from "./AttendanceSymbolCell";
 import SubmitForm from "@/components/SubmitForm";
 import { inputClass, buttonPrimaryClass, buttonSecondaryClass, cardClass } from "@/lib/ui";
 
@@ -31,7 +32,7 @@ export default async function AttendanceInputPage({
     .maybeSingle();
   if (!cls || !cls.term) notFound();
 
-  const allowed = await canAccessClass(supabase, staff, classId, "input");
+  const allowed = await canInputClass(supabase, staff, classId);
   if (!allowed) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
@@ -47,10 +48,13 @@ export default async function AttendanceInputPage({
   const nextDate = addDays(date, 1);
 
   const dateNav = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">{cls.name}</h1>
-        <p className="text-sm text-slate-500">出席入力 － {formatDateLabel(date)}</p>
+        <p className="text-xs font-medium text-slate-400">出席入力</p>
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{cls.name}</h1>
+        <p className="mt-1 text-lg font-bold text-blue-700 sm:text-xl">
+          {formatDateLabel(date)}
+        </p>
       </div>
       <div className="flex items-center gap-2">
         <Link href={`/attendance/${classId}?date=${prevDate}`} className={buttonSecondaryClass}>
@@ -177,6 +181,28 @@ export default async function AttendanceInputPage({
         teacherName: s.teacher_name,
         isElectiveSlot: s.is_elective_slot,
       }));
+
+    // 単発の時間割変更（振替授業等）：該当日・時限があれば教科・担当者名を上書きする。
+    // 必要出席日数のカウント方法には影響しないため、新しい時限を追加することはしない。
+    if (periods.length > 0) {
+      const { data: overrides } = await supabase
+        .from("schedule_change_overrides")
+        .select("*")
+        .eq("class_id", classId)
+        .eq("date", date);
+      const overrideByPeriod = new Map(
+        (overrides ?? []).map((o) => [o.period_no, o]),
+      );
+      periods = periods.map((p) => {
+        const override = overrideByPeriod.get(p.periodNo);
+        if (!override) return p;
+        return {
+          ...p,
+          subject: override.subject ?? p.subject,
+          teacherName: override.teacher_name ?? p.teacherName,
+        };
+      });
+    }
   }
 
   const roster =
@@ -189,12 +215,15 @@ export default async function AttendanceInputPage({
     studentIds.length > 0
       ? await supabase
           .from("attendance_records")
-          .select("student_id, period_no, symbol_id")
+          .select("student_id, period_no, symbol_id, time_value, reason")
           .eq("date", date)
           .in("student_id", studentIds)
       : { data: [] };
   const attByKey = new Map(
-    (existingAttendance ?? []).map((r) => [`${r.student_id}_${r.period_no}`, r.symbol_id]),
+    (existingAttendance ?? []).map((r) => [
+      `${r.student_id}_${r.period_no}`,
+      { symbolId: r.symbol_id, timeValue: r.time_value, reason: r.reason },
+    ]),
   );
 
   const electiveOverlapByPeriod = new Map<
@@ -241,134 +270,164 @@ export default async function AttendanceInputPage({
       {roster.length === 0 ? (
         <p className="text-sm text-slate-500">この日時点で在籍している学生がいません。</p>
       ) : (
-        <SubmitForm
-          action={saveAttendance}
-          successMessage="出席を保存しました"
-          className="flex flex-col gap-8"
-        >
-          <input type="hidden" name="class_id" value={classId} />
-          <input type="hidden" name="date" value={date} />
-
+        <div className="flex flex-col gap-8">
           {!skipNormalPeriods &&
             periods.map((p) => {
               const overlap = electiveOverlapByPeriod.get(p.periodNo);
               return (
-                <section key={p.periodNo} className={cardClass}>
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="font-bold text-slate-900">
-                      {p.periodLabel}　{p.subject}
-                      {p.teacherName && (
+                <SubmitForm
+                  key={p.periodNo}
+                  action={saveAttendance}
+                  successMessage={`${p.periodLabel}の出席を保存しました`}
+                >
+                  <section className={cardClass}>
+                    <input type="hidden" name="class_id" value={classId} />
+                    <input type="hidden" name="date" value={date} />
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h2 className="font-bold text-slate-900">
+                        {p.periodLabel}　{p.subject}
+                        {p.teacherName && (
+                          <span className="ml-2 text-sm font-normal text-slate-500">
+                            （{p.teacherName}）
+                          </span>
+                        )}
+                      </h2>
+                      <div className="flex items-center gap-2">
+                        {defaultSymbol && (
+                          <BulkFillButton
+                            namePrefix={`att_P${p.periodNo}_`}
+                            symbolId={defaultSymbol.id}
+                            label={`全員${defaultSymbol.label}`}
+                          />
+                        )}
+                        <button type="submit" className={buttonPrimaryClass}>
+                          この時限を保存
+                        </button>
+                      </div>
+                    </div>
+                    <ul className="flex flex-col gap-2">
+                      {roster.map(({ student }) => {
+                        const elective = overlap?.get(student.id);
+                        const existing = attByKey.get(`${student.id}_${p.periodNo}`);
+                        return (
+                          <li
+                            key={student.id}
+                            className="flex flex-wrap items-center gap-3 border-b border-slate-100 py-2 last:border-0"
+                          >
+                            <StudentBadge student={student} />
+                            {elective ? (
+                              <span className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700">
+                                選択科目：{elective.className}
+                                <Link
+                                  href={`/attendance/${elective.classId}?date=${date}`}
+                                  className="ml-2 underline"
+                                >
+                                  入力へ
+                                </Link>
+                              </span>
+                            ) : (
+                              <AttendanceSymbolCell
+                                symbolName={`att_P${p.periodNo}_${student.id}`}
+                                timeName={`attTime_P${p.periodNo}_${student.id}`}
+                                reasonName={`attReason_P${p.periodNo}_${student.id}`}
+                                symbols={symbols ?? []}
+                                defaultSymbolId={existing?.symbolId ?? ""}
+                                defaultTime={existing?.timeValue ?? null}
+                                defaultReason={existing?.reason ?? null}
+                              />
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                </SubmitForm>
+              );
+            })}
+
+          {applicableEvents.length > 0 && (
+            <SubmitForm action={saveAttendance} successMessage="行事の出席を保存しました">
+              <input type="hidden" name="class_id" value={classId} />
+              <input type="hidden" name="date" value={date} />
+              <div className="flex flex-col gap-8">
+                {applicableEvents.map((event) => (
+                  <section key={event.id} className={cardClass}>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h2 className="font-bold text-slate-900">
+                        学校行事：{event.name}
                         <span className="ml-2 text-sm font-normal text-slate-500">
-                          （{p.teacherName}）
+                          （単位時数 {event.credit_periods}）
                         </span>
+                      </h2>
+                      {defaultSymbol && (
+                        <BulkFillButton
+                          namePrefix={`evt_${event.id}_`}
+                          symbolId={defaultSymbol.id}
+                          label={`全員${defaultSymbol.label}`}
+                        />
                       )}
-                    </h2>
-                    {defaultSymbol && (
-                      <BulkFillButton
-                        namePrefix={`att_P${p.periodNo}_`}
-                        symbolId={defaultSymbol.id}
-                        label={`全員${defaultSymbol.label}`}
-                      />
-                    )}
-                  </div>
-                  <ul className="flex flex-col gap-2">
-                    {roster.map(({ student }) => {
-                      const elective = overlap?.get(student.id);
-                      return (
+                    </div>
+                    <ul className="flex flex-col gap-2">
+                      {roster.map(({ student }) => (
                         <li
                           key={student.id}
                           className="flex flex-wrap items-center gap-3 border-b border-slate-100 py-2 last:border-0"
                         >
                           <StudentBadge student={student} />
-                          {elective ? (
-                            <span className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700">
-                              選択科目：{elective.className}
-                              <Link
-                                href={`/attendance/${elective.classId}?date=${date}`}
-                                className="ml-2 underline"
-                              >
-                                入力へ
-                              </Link>
-                            </span>
-                          ) : (
-                            <select
-                              name={`att_P${p.periodNo}_${student.id}`}
-                              defaultValue={
-                                attByKey.get(`${student.id}_${p.periodNo}`) ?? ""
-                              }
-                              className={`${inputClass} ml-auto`}
-                            >
-                              <option value="">－ 未入力</option>
-                              {(symbols ?? []).map((s) => (
-                                <option key={s.id} value={s.id}>
-                                  {s.symbol_char} {s.label}
-                                </option>
-                              ))}
-                            </select>
-                          )}
+                          <select
+                            name={`evt_${event.id}_${student.id}`}
+                            defaultValue={evtByKey.get(`${event.id}_${student.id}`) ?? ""}
+                            className={`${inputClass} ml-auto`}
+                          >
+                            <option value="">－</option>
+                            {(symbols ?? []).map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.symbol_char}
+                              </option>
+                            ))}
+                          </select>
                         </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              );
-            })}
-
-          {applicableEvents.map((event) => (
-            <section key={event.id} className={cardClass}>
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-bold text-slate-900">
-                  学校行事：{event.name}
-                  <span className="ml-2 text-sm font-normal text-slate-500">
-                    （単位時数 {event.credit_periods}）
-                  </span>
-                </h2>
-                {defaultSymbol && (
-                  <BulkFillButton
-                    namePrefix={`evt_${event.id}_`}
-                    symbolId={defaultSymbol.id}
-                    label={`全員${defaultSymbol.label}`}
-                  />
-                )}
-              </div>
-              <ul className="flex flex-col gap-2">
-                {roster.map(({ student }) => (
-                  <li
-                    key={student.id}
-                    className="flex flex-wrap items-center gap-3 border-b border-slate-100 py-2 last:border-0"
-                  >
-                    <StudentBadge student={student} />
-                    <select
-                      name={`evt_${event.id}_${student.id}`}
-                      defaultValue={evtByKey.get(`${event.id}_${student.id}`) ?? ""}
-                      className={`${inputClass} ml-auto`}
-                    >
-                      <option value="">－ 未入力</option>
-                      {(symbols ?? []).map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.symbol_char} {s.label}
-                        </option>
                       ))}
-                    </select>
-                  </li>
+                    </ul>
+                  </section>
                 ))}
-              </ul>
-            </section>
-          ))}
+                <div>
+                  <button type="submit" className={buttonPrimaryClass}>
+                    行事の出席を保存
+                  </button>
+                </div>
+              </div>
+            </SubmitForm>
+          )}
 
           {skipNormalPeriods && applicableEvents.length === 0 && (
             <p className="text-sm text-slate-500">
               本日は通常授業がなく、対象の行事もありません。
             </p>
           )}
-
-          <div>
-            <button type="submit" className={buttonPrimaryClass}>
-              保存
-            </button>
-          </div>
-        </SubmitForm>
+        </div>
       )}
+
+      {(symbols ?? []).length > 0 && <SymbolLegend symbols={symbols ?? []} />}
+    </div>
+  );
+}
+
+function SymbolLegend({
+  symbols,
+}: {
+  symbols: { id: string; symbol_char: string; label: string }[];
+}) {
+  return (
+    <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+      <p className="mb-1 text-xs font-medium text-slate-500">凡例</p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
+        {symbols.map((s) => (
+          <span key={s.id}>
+            <span className="font-bold text-slate-900">{s.symbol_char}</span>：{s.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -376,7 +435,13 @@ export default async function AttendanceInputPage({
 function StudentBadge({
   student,
 }: {
-  student: { id: string; name: string; furigana: string; photo_url: string | null };
+  student: {
+    id: string;
+    student_number: string;
+    name: string;
+    furigana: string;
+    photo_url: string | null;
+  };
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -395,7 +460,12 @@ function StudentBadge({
         </span>
       )}
       <div>
-        <p className="text-sm font-medium text-slate-900">{student.name}</p>
+        <p className="text-sm font-medium text-slate-900">
+          {student.name}
+          <span className="ml-1 text-xs font-normal text-slate-400">
+            {student.student_number}
+          </span>
+        </p>
         <p className="text-xs text-slate-400">{student.furigana}</p>
       </div>
     </div>

@@ -1,22 +1,26 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTerm } from "@/lib/terms";
-import { getAccessibleClasses } from "@/lib/permissions";
+import { getActiveTerms } from "@/lib/terms";
+import { getInputAccessibleClasses } from "@/lib/permissions";
 import { todayISO } from "@/lib/date";
 import { cardClass } from "@/lib/ui";
 
 export default async function AttendanceSelectPage() {
   const staff = await requireStaff();
   const supabase = await createClient();
-  const term = await getActiveTerm(supabase);
+  const terms = await getActiveTerms(supabase);
   const today = todayISO();
 
-  if (!term) {
+  if (terms.length === 0) {
     return <p className="text-sm text-slate-500">アクティブな学期がありません。</p>;
   }
 
-  const classes = await getAccessibleClasses(supabase, staff, term.id, "input");
+  const termIds = terms.map((t) => t.id);
+  const termNameById = new Map(terms.map((t) => [t.id, t.name]));
+  const showTermLabel = terms.length > 1;
+
+  const classes = await getInputAccessibleClasses(supabase, staff, termIds);
   const homerooms = classes.filter((c) => c.type === "homeroom");
   const electives = classes.filter((c) => c.type === "elective");
 
@@ -33,13 +37,23 @@ export default async function AttendanceSelectPage() {
       {homerooms.length > 0 && (
         <section>
           <h2 className="mb-2 font-bold text-slate-900">ホームルームクラス</h2>
-          <ClassGrid classes={homerooms} date={today} />
+          <ClassGrid
+            classes={homerooms}
+            date={today}
+            termNameById={termNameById}
+            showTermLabel={showTermLabel}
+          />
         </section>
       )}
       {electives.length > 0 && (
         <section>
           <h2 className="mb-2 font-bold text-slate-900">選択科目</h2>
-          <ClassGrid classes={electives} date={today} />
+          <ClassGrid
+            classes={electives}
+            date={today}
+            termNameById={termNameById}
+            showTermLabel={showTermLabel}
+          />
         </section>
       )}
     </div>
@@ -49,9 +63,13 @@ export default async function AttendanceSelectPage() {
 function ClassGrid({
   classes,
   date,
+  termNameById,
+  showTermLabel,
 }: {
-  classes: { id: string; name: string }[];
+  classes: { id: string; name: string; term_id: string }[];
   date: string;
+  termNameById: Map<string, string>;
+  showTermLabel: boolean;
 }) {
   return (
     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -62,6 +80,11 @@ function ClassGrid({
             className={`${cardClass} block hover:border-blue-400`}
           >
             {c.name}
+            {showTermLabel && (
+              <span className="ml-1 text-xs text-slate-400">
+                （{termNameById.get(c.term_id)}）
+              </span>
+            )}
           </Link>
         </li>
       ))}

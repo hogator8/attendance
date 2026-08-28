@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { syncElectiveSlotFlags } from "@/lib/timetable";
 
@@ -10,7 +10,7 @@ const MAX_PERIODS = 10;
 const DAYS = [1, 2, 3, 4, 5, 6, 0]; // 月火水木金土日（表示順）。値はJSのgetDay()と同じ0=日〜6=土
 
 export async function updateClassName(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_classes");
   const supabase = await createClient();
   const classId = String(formData.get("class_id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
@@ -27,7 +27,7 @@ export async function updateClassName(formData: FormData) {
 }
 
 export async function createTimetableVersion(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_classes");
   const supabase = await createClient();
   const classId = String(formData.get("class_id") ?? "");
   const effectiveFrom = String(formData.get("effective_from") ?? "");
@@ -71,7 +71,7 @@ export async function createTimetableVersion(formData: FormData) {
 }
 
 export async function saveTimetableSlots(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_classes");
   const supabase = await createClient();
 
   const classId = String(formData.get("class_id") ?? "");
@@ -123,6 +123,56 @@ export async function saveTimetableSlots(formData: FormData) {
   }
 
   await syncElectiveSlotFlags(supabase, termId);
+
+  revalidatePath(`/classes/${classId}`);
+}
+
+// 単発の時間割変更（振替授業等）：特定クラス・日付・時限の科目・担当者名を
+// 一時的に上書きする。通常の時間割（timetable_slots）自体は変更しない。
+export async function createScheduleOverride(formData: FormData) {
+  await requirePermission("can_manage_classes");
+  const supabase = await createClient();
+
+  const classId = String(formData.get("class_id") ?? "");
+  const date = String(formData.get("date") ?? "");
+  const periodNo = Number(formData.get("period_no") ?? "");
+  const subject = String(formData.get("subject") ?? "").trim();
+  const teacherName = String(formData.get("teacher_name") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+
+  if (!classId || !date || !periodNo || periodNo <= 0) {
+    throw new Error("日付・時限を入力してください。");
+  }
+
+  const { error } = await supabase.from("schedule_change_overrides").upsert(
+    {
+      class_id: classId,
+      date,
+      period_no: periodNo,
+      subject: subject || null,
+      teacher_name: teacherName || null,
+      note: note || null,
+    },
+    { onConflict: "class_id,date,period_no" },
+  );
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/classes/${classId}`);
+}
+
+export async function deleteScheduleOverride(formData: FormData) {
+  await requirePermission("can_manage_classes");
+  const supabase = await createClient();
+
+  const overrideId = String(formData.get("override_id") ?? "");
+  const classId = String(formData.get("class_id") ?? "");
+  if (!overrideId) throw new Error("対象の変更が不正です。");
+
+  const { error } = await supabase
+    .from("schedule_change_overrides")
+    .delete()
+    .eq("id", overrideId);
+  if (error) throw new Error(error.message);
 
   revalidatePath(`/classes/${classId}`);
 }

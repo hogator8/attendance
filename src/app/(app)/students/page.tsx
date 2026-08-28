@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/date";
 import { buttonPrimaryClass, tableClass, thClass, tdClass } from "@/lib/ui";
@@ -12,21 +12,32 @@ const STATUS_LABELS: Record<StudentStatus, string> = {
   withdrawn: "退学",
 };
 
+type SortKey = "student_number" | "name" | "furigana" | "homeroom" | "status";
+const SORT_KEYS: SortKey[] = ["student_number", "name", "furigana", "homeroom", "status"];
+const SORT_LABELS: Record<SortKey, string> = {
+  student_number: "学籍番号",
+  name: "氏名",
+  furigana: "フリガナ",
+  homeroom: "現在のホームルーム",
+  status: "状態",
+};
+
 export default async function StudentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ showWithdrawn?: string }>;
+  searchParams: Promise<{ showWithdrawn?: string; sort?: string; dir?: string }>;
 }) {
-  await requireAdmin();
-  const { showWithdrawn } = await searchParams;
+  await requirePermission("can_manage_students");
+  const { showWithdrawn, sort, dir } = await searchParams;
   const includeWithdrawn = showWithdrawn === "1";
+  const sortKey: SortKey = SORT_KEYS.includes(sort as SortKey)
+    ? (sort as SortKey)
+    : "student_number";
+  const sortDir: "asc" | "desc" = dir === "desc" ? "desc" : "asc";
   const supabase = await createClient();
   const today = todayISO();
 
-  let query = supabase
-    .from("students")
-    .select("*")
-    .order("student_number");
+  let query = supabase.from("students").select("*");
   if (!includeWithdrawn) {
     query = query.neq("status", "withdrawn");
   }
@@ -49,10 +60,28 @@ export default async function StudentsPage({
     if (className) homeroomByStudent.set(e.student_id, className);
   }
 
+  const sorted = [...(students ?? [])].sort((a, b) => {
+    const va =
+      sortKey === "homeroom" ? (homeroomByStudent.get(a.id) ?? "") : a[sortKey];
+    const vb =
+      sortKey === "homeroom" ? (homeroomByStudent.get(b.id) ?? "") : b[sortKey];
+    const cmp = String(va).localeCompare(String(vb), "ja");
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  function sortHref(key: SortKey) {
+    const nextDir = sortKey === key && sortDir === "asc" ? "desc" : "asc";
+    const params = new URLSearchParams();
+    if (includeWithdrawn) params.set("showWithdrawn", "1");
+    params.set("sort", key);
+    params.set("dir", nextDir);
+    return `/students?${params.toString()}`;
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">生徒管理</h1>
+        <h1 className="text-xl font-bold text-slate-900">学生管理</h1>
         <Link href="/students/new" className={buttonPrimaryClass}>
           新規登録
         </Link>
@@ -79,15 +108,18 @@ export default async function StudentsPage({
           <thead>
             <tr>
               <th className={thClass}></th>
-              <th className={thClass}>学籍番号</th>
-              <th className={thClass}>氏名</th>
-              <th className={thClass}>フリガナ</th>
-              <th className={thClass}>現在のホームルーム</th>
-              <th className={thClass}>状態</th>
+              {SORT_KEYS.map((key) => (
+                <th key={key} className={thClass}>
+                  <Link href={sortHref(key)} className="inline-flex items-center gap-1 hover:underline">
+                    {SORT_LABELS[key]}
+                    {sortKey === key && <span>{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  </Link>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {(students ?? []).map((s) => (
+            {sorted.map((s) => (
               <tr key={s.id}>
                 <td className={tdClass}>
                   {s.photo_url ? (
@@ -133,10 +165,10 @@ export default async function StudentsPage({
                 </td>
               </tr>
             ))}
-            {(students ?? []).length === 0 && (
+            {sorted.length === 0 && (
               <tr>
                 <td className={tdClass} colSpan={6}>
-                  生徒が登録されていません。
+                  学生が登録されていません。
                 </td>
               </tr>
             )}

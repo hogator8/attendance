@@ -1,15 +1,17 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTerm } from "@/lib/terms";
+import { getActiveTerms } from "@/lib/terms";
 import { todayISO } from "@/lib/date";
 import SubmitForm from "@/components/SubmitForm";
+import FileInputButton from "@/components/FileInputButton";
 import {
   updateStudentInfo,
   updateStudentStatus,
   assignHomeroom,
+  endHomeroomEnrollment,
   assignElective,
   endElective,
 } from "./actions";
@@ -29,7 +31,7 @@ export default async function StudentDetailPage({
 }: {
   params: Promise<{ studentId: string }>;
 }) {
-  await requireAdmin();
+  await requirePermission("can_manage_students");
   const { studentId } = await params;
   const supabase = await createClient();
   const today = todayISO();
@@ -41,23 +43,26 @@ export default async function StudentDetailPage({
     .maybeSingle();
   if (!student) notFound();
 
-  const activeTerm = await getActiveTerm(supabase);
-  const { data: homeroomClasses } = activeTerm
-    ? await supabase
-        .from("classes")
-        .select("*")
-        .eq("term_id", activeTerm.id)
-        .eq("type", "homeroom")
-        .order("name")
-    : { data: [] };
-  const { data: electiveClasses } = activeTerm
-    ? await supabase
-        .from("classes")
-        .select("*")
-        .eq("term_id", activeTerm.id)
-        .eq("type", "elective")
-        .order("name")
-    : { data: [] };
+  const activeTerms = await getActiveTerms(supabase);
+  const activeTermIds = activeTerms.map((t) => t.id);
+  const { data: homeroomClasses } =
+    activeTermIds.length > 0
+      ? await supabase
+          .from("classes")
+          .select("*")
+          .in("term_id", activeTermIds)
+          .eq("type", "homeroom")
+          .order("name")
+      : { data: [] };
+  const { data: electiveClasses } =
+    activeTermIds.length > 0
+      ? await supabase
+          .from("classes")
+          .select("*")
+          .in("term_id", activeTermIds)
+          .eq("type", "elective")
+          .order("name")
+      : { data: [] };
 
   const { data: enrollments } = await supabase
     .from("class_enrollments")
@@ -79,7 +84,7 @@ export default async function StudentDetailPage({
     <div className="flex flex-col gap-6">
       <div>
         <Link href="/students" className="text-sm text-blue-600 hover:underline">
-          ← 生徒一覧に戻る
+          ← 学生一覧に戻る
         </Link>
         <h1 className="mt-1 text-xl font-bold text-slate-900">
           {student.name}（{student.student_number}）
@@ -140,6 +145,14 @@ export default async function StudentDetailPage({
               />
             </div>
             <div className="flex flex-col gap-1">
+              <label className={labelClass}>国籍（任意）</label>
+              <input
+                name="nationality"
+                defaultValue={student.nationality ?? ""}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
               <label className={labelClass}>入学日</label>
               <input
                 type="date"
@@ -151,7 +164,7 @@ export default async function StudentDetailPage({
             </div>
             <div className="flex flex-col gap-1">
               <label className={labelClass}>写真を変更</label>
-              <input type="file" name="photo" accept="image/*" className="text-sm" />
+              <FileInputButton name="photo" accept="image/*" />
             </div>
             <div>
               <button type="submit" className={buttonPrimaryClass}>
@@ -222,7 +235,30 @@ export default async function StudentDetailPage({
           )}
         </p>
 
-        {activeTerm ? (
+        {currentEnrollment && (
+          <SubmitForm
+            action={endHomeroomEnrollment}
+            successMessage="配属を解除しました"
+            className="mb-4 flex flex-wrap items-end gap-2"
+          >
+            <input type="hidden" name="enrollment_id" value={currentEnrollment.id} />
+            <input type="hidden" name="student_id" value={student.id} />
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>配属解除日</label>
+              <input
+                type="date"
+                name="valid_to"
+                defaultValue={today}
+                className={`${inputClass} w-36`}
+              />
+            </div>
+            <button type="submit" className={buttonSecondaryClass}>
+              配属解除
+            </button>
+          </SubmitForm>
+        )}
+
+        {activeTerms.length > 0 ? (
           <SubmitForm
             action={assignHomeroom}
             successMessage="クラス配属を更新しました"
@@ -258,6 +294,10 @@ export default async function StudentDetailPage({
                 defaultValue={today}
                 className={inputClass}
               />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>配属終了日（任意）</label>
+              <input type="date" name="valid_to" className={inputClass} />
             </div>
             <button type="submit" className={buttonPrimaryClass}>
               配属・クラス異動
@@ -333,7 +373,7 @@ export default async function StudentDetailPage({
           </ul>
         )}
 
-        {activeTerm ? (
+        {activeTerms.length > 0 ? (
           <SubmitForm
             action={assignElective}
             successMessage="選択科目を追加しました"
@@ -360,6 +400,10 @@ export default async function StudentDetailPage({
                 defaultValue={today}
                 className={inputClass}
               />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>終了日（任意）</label>
+              <input type="date" name="valid_to" className={inputClass} />
             </div>
             <button type="submit" className={buttonPrimaryClass}>
               追加

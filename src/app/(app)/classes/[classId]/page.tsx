@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import SubmitForm from "@/components/SubmitForm";
 import {
   updateClassName,
   createTimetableVersion,
   saveTimetableSlots,
+  createScheduleOverride,
+  deleteScheduleOverride,
 } from "./actions";
 import {
   cardClass,
@@ -14,6 +16,9 @@ import {
   labelClass,
   buttonPrimaryClass,
   buttonSecondaryClass,
+  tableClass,
+  thClass,
+  tdClass,
 } from "@/lib/ui";
 
 const MAX_PERIODS = 10;
@@ -34,7 +39,7 @@ export default async function ClassDetailPage({
   params: Promise<{ classId: string }>;
   searchParams: Promise<{ edit?: string }>;
 }) {
-  await requireAdmin();
+  await requirePermission("can_manage_classes");
   const { classId } = await params;
   const { edit } = await searchParams;
   const supabase = await createClient();
@@ -71,6 +76,13 @@ export default async function ClassDetailPage({
       labelByPeriod.set(s.period_no, s.period_label);
     }
   }
+
+  const { data: scheduleOverrides } = await supabase
+    .from("schedule_change_overrides")
+    .select("*")
+    .eq("class_id", classId)
+    .order("date", { ascending: false })
+    .order("period_no");
 
   return (
     <div className="flex flex-col gap-6">
@@ -244,6 +256,100 @@ export default async function ClassDetailPage({
             時間割バージョンがまだありません。上のフォームから作成してください。
           </p>
         )}
+      </section>
+
+      <section>
+        <h2 className="mb-2 font-bold text-slate-900">
+          単発の時間割変更（振替授業等）
+        </h2>
+        <p className="mb-3 text-xs text-slate-500">
+          特定の日・時限だけ、通常の時間割とは異なる教科・担当者で出席入力画面に表示します。
+          必要出席日数の数え方には影響しません。
+        </p>
+
+        {(scheduleOverrides ?? []).length > 0 && (
+          <div className="mb-4 overflow-x-auto">
+            <table className={tableClass}>
+              <thead>
+                <tr>
+                  <th className={thClass}>日付</th>
+                  <th className={thClass}>時限</th>
+                  <th className={thClass}>教科</th>
+                  <th className={thClass}>担当者</th>
+                  <th className={thClass}>メモ</th>
+                  <th className={thClass}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(scheduleOverrides ?? []).map((o) => (
+                  <tr key={o.id}>
+                    <td className={tdClass}>{o.date}</td>
+                    <td className={tdClass}>{o.period_no}</td>
+                    <td className={tdClass}>{o.subject ?? "-"}</td>
+                    <td className={tdClass}>{o.teacher_name ?? "-"}</td>
+                    <td className={tdClass}>{o.note ?? "-"}</td>
+                    <td className={tdClass}>
+                      <SubmitForm
+                        action={deleteScheduleOverride}
+                        successMessage="削除しました"
+                      >
+                        <input type="hidden" name="override_id" value={o.id} />
+                        <input type="hidden" name="class_id" value={classId} />
+                        <button type="submit" className={buttonSecondaryClass}>
+                          削除
+                        </button>
+                      </SubmitForm>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className={`${cardClass} max-w-md`}>
+          <h3 className="mb-2 text-sm font-bold text-slate-900">変更を追加</h3>
+          <SubmitForm
+            action={createScheduleOverride}
+            successMessage="時間割の変更を保存しました"
+            className="flex flex-col gap-3"
+          >
+            <input type="hidden" name="class_id" value={classId} />
+            <div className="flex gap-3">
+              <div className="flex flex-1 flex-col gap-1">
+                <label className={labelClass}>日付</label>
+                <input type="date" name="date" required className={inputClass} />
+              </div>
+              <div className="flex w-24 flex-col gap-1">
+                <label className={labelClass}>時限</label>
+                <input
+                  type="number"
+                  name="period_no"
+                  min={1}
+                  required
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>教科（任意）</label>
+              <input name="subject" className={inputClass} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>担当者（任意）</label>
+              <input name="teacher_name" className={inputClass} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>メモ（任意）</label>
+              <input name="note" className={inputClass} />
+            </div>
+            <div>
+              <button type="submit" className={buttonPrimaryClass}>
+                追加
+              </button>
+            </div>
+          </SubmitForm>
+        </div>
       </section>
     </div>
   );

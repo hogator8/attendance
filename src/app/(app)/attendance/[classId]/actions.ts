@@ -3,12 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessClass } from "@/lib/permissions";
+import { canInputClass } from "@/lib/permissions";
 
 // フィールド名の規則:
 //   通常時限   : att_P{periodNo}_{studentId} = symbolId（空文字列 = 記録なし）
+//   　　　　　   attTime_P{periodNo}_{studentId} = 時刻（任意、遅刻・早退用）
+//   　　　　　   attReason_P{periodNo}_{studentId} = 理由（任意）
 //   学校行事   : evt_{eventId}_{studentId} = symbolId
 const ATT_KEY = /^att_P(\d+)_(.+)$/;
+const ATT_TIME_KEY = /^attTime_P(\d+)_(.+)$/;
+const ATT_REASON_KEY = /^attReason_P(\d+)_(.+)$/;
 const UUID = "[0-9a-fA-F-]{36}";
 const EVT_KEY = new RegExp(`^evt_(${UUID})_(${UUID})$`);
 
@@ -20,7 +24,7 @@ export async function saveAttendance(formData: FormData) {
   const date = String(formData.get("date") ?? "");
   if (!classId || !date) throw new Error("クラス・日付が不正です。");
 
-  const allowed = await canAccessClass(supabase, staff, classId, "input");
+  const allowed = await canInputClass(supabase, staff, classId);
   if (!allowed) {
     throw new Error("このクラスへの出席入力権限がありません。");
   }
@@ -50,6 +54,8 @@ export async function saveAttendance(formData: FormData) {
     date: string;
     period_no: number;
     symbol_id: string;
+    time_value: string | null;
+    reason: string | null;
     recorded_by: string;
   };
   const attUpserts: AttUpsert[] = [];
@@ -64,6 +70,25 @@ export async function saveAttendance(formData: FormData) {
   const evtUpserts: EvtUpsert[] = [];
   const evtDeletes: { event_id: string; student_id: string }[] = [];
 
+  // att_/attTime_/attReason_ の各フィールドはname順に依存せず組み合わせる
+  // 必要があるため、先に time/reason を `${periodNo}_${studentId}` 単位で集めておく。
+  const timeByKey = new Map<string, string>();
+  const reasonByKey = new Map<string, string>();
+  for (const [key, rawValue] of formData.entries()) {
+    const value = String(rawValue).trim();
+    if (!value) continue;
+
+    const timeMatch = key.match(ATT_TIME_KEY);
+    if (timeMatch) {
+      timeByKey.set(`${timeMatch[1]}_${timeMatch[2]}`, value);
+      continue;
+    }
+    const reasonMatch = key.match(ATT_REASON_KEY);
+    if (reasonMatch) {
+      reasonByKey.set(`${reasonMatch[1]}_${reasonMatch[2]}`, value);
+    }
+  }
+
   for (const [key, rawValue] of formData.entries()) {
     const value = String(rawValue);
 
@@ -74,12 +99,15 @@ export async function saveAttendance(formData: FormData) {
       if (value === "") {
         attDeletes.push({ student_id: studentId, period_no: periodNo });
       } else {
+        const periodStudentKey = `${periodNo}_${studentId}`;
         attUpserts.push({
           student_id: studentId,
           class_id: classId,
           date,
           period_no: periodNo,
           symbol_id: value,
+          time_value: timeByKey.get(periodStudentKey) ?? null,
+          reason: reasonByKey.get(periodStudentKey) ?? null,
           recorded_by: staff.id,
         });
       }

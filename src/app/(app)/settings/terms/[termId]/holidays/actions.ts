@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export async function addHoliday(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_settings");
   const supabase = await createClient();
   const termId = String(formData.get("term_id") ?? "");
   const date = String(formData.get("date") ?? "");
@@ -26,7 +26,7 @@ export async function addHoliday(formData: FormData) {
 }
 
 export async function deleteHoliday(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_settings");
   const supabase = await createClient();
   const id = String(formData.get("id") ?? "");
   const termId = String(formData.get("term_id") ?? "");
@@ -40,7 +40,7 @@ export async function deleteHoliday(formData: FormData) {
 
 // CSV一括登録：1行につき「日付,項目名,色(任意・#RRGGBB)」の形式
 export async function importHolidaysCsv(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_settings");
   const supabase = await createClient();
   const termId = String(formData.get("term_id") ?? "");
   const csv = String(formData.get("csv") ?? "");
@@ -54,7 +54,7 @@ export async function importHolidaysCsv(formData: FormData) {
     .filter((line) => line.length > 0)
     .map((line) => {
       const [date, label, colorHex] = line.split(",").map((s) => s.trim());
-      return { term_id: termId, date, label, color_hex: colorHex || null };
+      return { term_id: termId, date, label, color_hex: colorHex || "#FFCCCC" };
     });
 
   const invalid = rows.find(

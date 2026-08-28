@@ -1,19 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { uploadStudentPhoto } from "@/lib/storage";
 import type { StudentStatus } from "@/lib/supabase/database.types";
 
 export async function updateStudentInfo(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_students");
   const supabase = await createClient();
 
   const studentId = String(formData.get("student_id") ?? "");
   const studentNumber = String(formData.get("student_number") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const furigana = String(formData.get("furigana") ?? "").trim();
+  const nationality = String(formData.get("nationality") ?? "").trim();
   const enrollmentDate = String(formData.get("enrollment_date") ?? "");
   const photo = formData.get("photo");
 
@@ -27,6 +28,7 @@ export async function updateStudentInfo(formData: FormData) {
       student_number: studentNumber,
       name,
       furigana,
+      nationality: nationality || null,
       enrollment_date: enrollmentDate,
     })
     .eq("id", studentId);
@@ -45,7 +47,7 @@ export async function updateStudentInfo(formData: FormData) {
 }
 
 export async function updateStudentStatus(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_students");
   const supabase = await createClient();
 
   const studentId = String(formData.get("student_id") ?? "");
@@ -74,20 +76,24 @@ export async function updateStudentStatus(formData: FormData) {
   revalidatePath("/students");
 }
 
-// ホームルームへの新規配属・クラス異動。
-// 既存の在籍中エンロールメントがあれば有効期間を閉じてから新しい行を追加する。
+// ホームルームへの新規配属・クラス異動。終了日（任意）を指定した場合、
+// その日をvalid_toとしてセットした状態で配属する。
 export async function assignHomeroom(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_students");
   const supabase = await createClient();
 
   const studentId = String(formData.get("student_id") ?? "");
   const classId = String(formData.get("class_id") ?? "");
   const validFrom = String(formData.get("valid_from") ?? "");
+  const validTo = String(formData.get("valid_to") ?? "").trim();
   const seqNoRaw = String(formData.get("seq_no") ?? "");
   const seqNo = seqNoRaw ? Number(seqNoRaw) : null;
 
   if (!studentId || !classId || !validFrom) {
     throw new Error("クラス・配属開始日を入力してください。");
+  }
+  if (validTo && validTo < validFrom) {
+    throw new Error("配属終了日は開始日以降にしてください。");
   }
 
   const { data: current } = await supabase
@@ -100,7 +106,7 @@ export async function assignHomeroom(formData: FormData) {
   if (current && current.class_id === classId) {
     const { error } = await supabase
       .from("class_enrollments")
-      .update({ seq_no: seqNo })
+      .update({ seq_no: seqNo, valid_to: validTo || null })
       .eq("id", current.id);
     if (error) throw new Error(error.message);
     revalidatePath(`/students/${studentId}`);
@@ -113,12 +119,12 @@ export async function assignHomeroom(formData: FormData) {
     }
     const prevDay = new Date(`${validFrom}T00:00:00+09:00`);
     prevDay.setDate(prevDay.getDate() - 1);
-    const validTo = prevDay.toLocaleDateString("sv-SE", {
+    const closeDate = prevDay.toLocaleDateString("sv-SE", {
       timeZone: "Asia/Tokyo",
     });
     const { error } = await supabase
       .from("class_enrollments")
-      .update({ valid_to: validTo })
+      .update({ valid_to: closeDate })
       .eq("id", current.id);
     if (error) throw new Error(error.message);
   }
@@ -128,28 +134,56 @@ export async function assignHomeroom(formData: FormData) {
     class_id: classId,
     seq_no: seqNo,
     valid_from: validFrom,
+    valid_to: validTo || null,
   });
   if (error) throw new Error(error.message);
 
   revalidatePath(`/students/${studentId}`);
 }
 
+// 現在のホームルーム配属を、割当解除（配属終了日をセット）する。
+export async function endHomeroomEnrollment(formData: FormData) {
+  await requirePermission("can_manage_students");
+  const supabase = await createClient();
+
+  const enrollmentId = String(formData.get("enrollment_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const validTo = String(formData.get("valid_to") ?? "");
+
+  if (!enrollmentId || !validTo) {
+    throw new Error("終了日を入力してください。");
+  }
+
+  const { error } = await supabase
+    .from("class_enrollments")
+    .update({ valid_to: validTo })
+    .eq("id", enrollmentId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/students/${studentId}`);
+}
+
 export async function assignElective(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_students");
   const supabase = await createClient();
 
   const studentId = String(formData.get("student_id") ?? "");
   const classId = String(formData.get("class_id") ?? "");
   const validFrom = String(formData.get("valid_from") ?? "");
+  const validTo = String(formData.get("valid_to") ?? "").trim();
 
   if (!studentId || !classId || !validFrom) {
     throw new Error("選択科目・開始日を入力してください。");
+  }
+  if (validTo && validTo < validFrom) {
+    throw new Error("終了日は開始日以降にしてください。");
   }
 
   const { error } = await supabase.from("elective_memberships").insert({
     student_id: studentId,
     class_id: classId,
     valid_from: validFrom,
+    valid_to: validTo || null,
   });
   if (error) throw new Error(error.message);
 
@@ -157,7 +191,7 @@ export async function assignElective(formData: FormData) {
 }
 
 export async function endElective(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_students");
   const supabase = await createClient();
 
   const membershipId = String(formData.get("membership_id") ?? "");

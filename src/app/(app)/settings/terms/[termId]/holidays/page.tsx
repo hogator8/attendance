@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import SubmitForm from "@/components/SubmitForm";
 import { addHoliday, deleteHoliday, importHolidaysCsv } from "./actions";
@@ -20,7 +20,7 @@ export default async function HolidaysSettingsPage({
 }: {
   params: Promise<{ termId: string }>;
 }) {
-  await requireAdmin();
+  await requirePermission("can_manage_settings");
   const { termId } = await params;
   const supabase = await createClient();
 

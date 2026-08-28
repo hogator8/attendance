@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTerm } from "@/lib/terms";
+import { getActiveTerms } from "@/lib/terms";
 import SubmitForm from "@/components/SubmitForm";
 import { createStaffAccount } from "./actions";
 import { savePermissions } from "./[staffId]/actions";
@@ -16,10 +16,19 @@ import {
   tdClass,
 } from "@/lib/ui";
 
+const ROLE_LABEL: Record<string, string> = {
+  admin: "管理者",
+  full_time: "専任",
+  part_time: "非常勤",
+};
+
 export default async function StaffPage() {
-  await requireAdmin();
+  await requirePermission("can_manage_staff");
   const supabase = await createClient();
-  const term = await getActiveTerm(supabase);
+  const terms = await getActiveTerms(supabase);
+  const termIds = terms.map((t) => t.id);
+  const termNameById = new Map(terms.map((t) => [t.id, t.name]));
+  const showTermLabel = terms.length > 1;
 
   const { data: staffList } = await supabase
     .from("staff")
@@ -27,14 +36,15 @@ export default async function StaffPage() {
     .order("role")
     .order("name");
 
-  const { data: classes } = term
-    ? await supabase
-        .from("classes")
-        .select("*")
-        .eq("term_id", term.id)
-        .order("type")
-        .order("name")
-    : { data: [] };
+  const { data: classes } =
+    termIds.length > 0
+      ? await supabase
+          .from("classes")
+          .select("*")
+          .in("term_id", termIds)
+          .order("type")
+          .order("name")
+      : { data: [] };
 
   const { data: permissions } = await supabase
     .from("staff_class_permissions")
@@ -46,9 +56,7 @@ export default async function StaffPage() {
   // 保存直後のcheckboxが保存前の初期値に戻って見える不具合を防ぐ
   const permKey =
     (permissions ?? [])
-      .map(
-        (p) => `${p.staff_id}:${p.class_id}:${p.can_input}:${p.can_view_summary}`,
-      )
+      .map((p) => `${p.staff_id}:${p.class_id}:${p.can_input}`)
       .sort()
       .join("|") || "empty";
 
@@ -57,7 +65,7 @@ export default async function StaffPage() {
       <h1 className="text-xl font-bold text-slate-900">教員管理</h1>
 
       <div key={permKey}>
-        {!term ? (
+        {terms.length === 0 ? (
           <p className="text-sm text-slate-500">
             アクティブな学期がないため、クラス権限は設定できません。
           </p>
@@ -69,15 +77,15 @@ export default async function StaffPage() {
               <thead>
                 <tr>
                   <th className={thClass}>氏名</th>
-                  <th className={thClass}>メールアドレス</th>
+                  <th className={thClass}>ログインID</th>
                   <th className={thClass}>役職</th>
-                  <th className={thClass}>雇用形態</th>
                   {(classes ?? []).map((c) => (
                     <th key={c.id} className={thClass}>
                       {c.name}
                       <br />
                       <span className="text-[10px] font-normal text-slate-400">
                         {c.type === "homeroom" ? "ホームルーム" : "選択科目"}
+                        {showTermLabel && `／${termNameById.get(c.term_id)}`}
                       </span>
                     </th>
                   ))}
@@ -95,11 +103,8 @@ export default async function StaffPage() {
                         {s.name}
                       </Link>
                     </td>
-                    <td className={tdClass}>{s.email}</td>
-                    <td className={tdClass}>
-                      {s.role === "admin" ? "管理者" : "教員"}
-                    </td>
-                    <td className={tdClass}>{s.employment_type ?? "-"}</td>
+                    <td className={tdClass}>{s.login_id}</td>
+                    <td className={tdClass}>{ROLE_LABEL[s.role] ?? s.role}</td>
                     {s.role === "admin" ? (
                       <td className={tdClass} colSpan={(classes ?? []).length}>
                         <span className="text-xs text-slate-400">
@@ -128,7 +133,7 @@ export default async function StaffPage() {
                 ))}
                 {(staffList ?? []).length === 0 && (
                   <tr>
-                    <td className={tdClass} colSpan={5 + (classes ?? []).length}>
+                    <td className={tdClass} colSpan={4 + (classes ?? []).length}>
                       教員が登録されていません。
                     </td>
                   </tr>
@@ -166,38 +171,26 @@ export default async function StaffPage() {
             <input name="name" required className={inputClass} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>メールアドレス（ログインID）</label>
-            <input
-              type="email"
-              name="email"
-              required
-              className={inputClass}
-            />
+            <label className={labelClass}>ログインID</label>
+            <input name="login_id" required className={inputClass} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>初期パスワード（8文字以上）</label>
+            <label className={labelClass}>初期パスワード（4文字以上）</label>
             <input
               type="text"
               name="password"
               required
-              minLength={8}
+              minLength={4}
               className={inputClass}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className={labelClass}>役職</label>
-            <select name="role" defaultValue="teacher" className={inputClass}>
-              <option value="teacher">教員</option>
+            <select name="role" defaultValue="full_time" className={inputClass}>
+              <option value="full_time">専任</option>
+              <option value="part_time">非常勤</option>
               <option value="admin">管理者</option>
             </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className={labelClass}>雇用形態（表示用・任意）</label>
-            <input
-              name="employment_type"
-              placeholder="例：専任、非常勤"
-              className={inputClass}
-            />
           </div>
           <div>
             <button type="submit" className={buttonPrimaryClass}>
@@ -217,10 +210,7 @@ function PermissionCells({
 }: {
   staffId: string;
   classes: { id: string; name: string }[];
-  permByStaffClass: Map<
-    string,
-    { can_input: boolean; can_view_summary: boolean }
-  >;
+  permByStaffClass: Map<string, { can_input: boolean }>;
 }) {
   return (
     <>
@@ -229,23 +219,14 @@ function PermissionCells({
         return (
           <td key={c.id} className={`${tdClass} text-center`}>
             <input type="hidden" form={`perm-form-${staffId}`} name="class_id" value={c.id} />
-            <label className="mr-2 inline-flex items-center gap-1 text-xs">
+            <label className="inline-flex items-center gap-1 text-xs">
               <input
                 type="checkbox"
                 form={`perm-form-${staffId}`}
                 name={`input_${c.id}`}
                 defaultChecked={perm?.can_input ?? false}
               />
-              入
-            </label>
-            <label className="inline-flex items-center gap-1 text-xs">
-              <input
-                type="checkbox"
-                form={`perm-form-${staffId}`}
-                name={`view_${c.id}`}
-                defaultChecked={perm?.can_view_summary ?? false}
-              />
-              閲
+              入力可
             </label>
           </td>
         );

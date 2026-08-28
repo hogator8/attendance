@@ -13,7 +13,7 @@ export type SymbolCategory =
   | "excused"
   | "excluded";
 export type EventReplaceMode = "all" | "partial" | "none";
-export type StaffRole = "admin" | "teacher";
+export type StaffRole = "admin" | "full_time" | "part_time";
 
 export interface Database {
   public: {
@@ -44,7 +44,7 @@ export interface Database {
           name: string;
           email: string;
           role: StaffRole;
-          employment_type: string | null;
+          login_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -53,12 +53,44 @@ export interface Database {
           name: string;
           email: string;
           role?: StaffRole;
-          employment_type?: string | null;
+          login_id: string;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["staff"]["Insert"]>;
         Relationships: [];
+      };
+      staff_permissions: {
+        Row: {
+          staff_id: string;
+          can_view_summary: boolean;
+          can_manage_students: boolean;
+          can_manage_classes: boolean;
+          can_manage_staff: boolean;
+          can_manage_settings: boolean;
+          can_view_individual_records: boolean;
+        };
+        Insert: {
+          staff_id: string;
+          can_view_summary?: boolean;
+          can_manage_students?: boolean;
+          can_manage_classes?: boolean;
+          can_manage_staff?: boolean;
+          can_manage_settings?: boolean;
+          can_view_individual_records?: boolean;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["staff_permissions"]["Insert"]
+        >;
+        Relationships: [
+          {
+            foreignKeyName: "staff_permissions_staff_id_fkey";
+            columns: ["staff_id"];
+            isOneToOne: true;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       students: {
         Row: {
@@ -71,6 +103,7 @@ export interface Database {
           status: StudentStatus;
           status_date: string | null;
           status_note: string | null;
+          nationality: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -84,6 +117,7 @@ export interface Database {
           status?: StudentStatus;
           status_date?: string | null;
           status_note?: string | null;
+          nationality?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -465,6 +499,8 @@ export interface Database {
           date: string;
           period_no: number;
           symbol_id: string;
+          time_value: string | null;
+          reason: string | null;
           recorded_by: string;
           recorded_at: string;
         };
@@ -475,6 +511,8 @@ export interface Database {
           date: string;
           period_no: number;
           symbol_id: string;
+          time_value?: string | null;
+          reason?: string | null;
           recorded_by: string;
           recorded_at?: string;
         };
@@ -596,8 +634,83 @@ export interface Database {
           },
         ];
       };
+      schedule_change_overrides: {
+        Row: {
+          id: string;
+          class_id: string;
+          date: string;
+          period_no: number;
+          subject: string | null;
+          teacher_name: string | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          class_id: string;
+          date: string;
+          period_no: number;
+          subject?: string | null;
+          teacher_name?: string | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["schedule_change_overrides"]["Insert"]
+        >;
+        Relationships: [
+          {
+            foreignKeyName: "schedule_change_overrides_class_id_fkey";
+            columns: ["class_id"];
+            isOneToOne: false;
+            referencedRelation: "classes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      historical_monthly_summaries: {
+        Row: {
+          id: string;
+          student_id: string;
+          year_month: string;
+          required_days: number;
+          attended_days: number;
+          absent_days: number;
+          late_count: number;
+          early_leave_count: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          year_month: string;
+          required_days?: number;
+          attended_days?: number;
+          absent_days?: number;
+          late_count?: number;
+          early_leave_count?: number;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["historical_monthly_summaries"]["Insert"]
+        >;
+        Relationships: [
+          {
+            foreignKeyName: "historical_monthly_summaries_student_id_fkey";
+            columns: ["student_id"];
+            isOneToOne: false;
+            referencedRelation: "students";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      staff_login_email: {
+        Args: { p_login_id: string };
+        Returns: string;
+      };
+    };
   };
 }

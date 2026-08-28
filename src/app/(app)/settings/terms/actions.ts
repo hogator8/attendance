@@ -20,13 +20,6 @@ export async function createTerm(formData: FormData) {
     throw new Error("開始日は終了日より前に設定してください。");
   }
 
-  if (activate) {
-    await supabase.from("terms").update({ is_active: false }).eq(
-      "is_active",
-      true,
-    );
-  }
-
   const { data: term, error } = await supabase
     .from("terms")
     .insert({
@@ -47,20 +40,18 @@ export async function createTerm(formData: FormData) {
   revalidatePath("/settings/terms");
 }
 
-export async function activateTerm(formData: FormData) {
+// 学期のアクティブ状態は複数同時に許可され、いつでもON/OFFを切り替えられる
+// （排他制御はしない）。
+export async function setTermActive(formData: FormData) {
   await requireAdmin();
   const supabase = await createClient();
   const termId = String(formData.get("term_id") ?? "");
+  const active = String(formData.get("active") ?? "") === "true";
   if (!termId) throw new Error("学期IDが不正です。");
 
-  await supabase
-    .from("terms")
-    .update({ is_active: false })
-    .eq("is_active", true)
-    .neq("id", termId);
   const { error } = await supabase
     .from("terms")
-    .update({ is_active: true })
+    .update({ is_active: active })
     .eq("id", termId);
   if (error) throw new Error(error.message);
 
