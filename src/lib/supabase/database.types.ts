@@ -104,6 +104,9 @@ export interface Database {
           status_date: string | null;
           status_note: string | null;
           nationality: string | null;
+          gender: string | null;
+          date_of_birth: string | null;
+          expected_graduation_date: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -118,6 +121,9 @@ export interface Database {
           status_date?: string | null;
           status_note?: string | null;
           nationality?: string | null;
+          gender?: string | null;
+          date_of_birth?: string | null;
+          expected_graduation_date?: string | null;
           created_at?: string;
           updated_at?: string;
         };

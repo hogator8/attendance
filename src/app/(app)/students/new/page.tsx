@@ -40,6 +40,14 @@ export default async function NewStudentPage() {
           <input name="nationality" className={inputClass} />
         </div>
         <div className="flex flex-col gap-1">
+          <label className={labelClass}>性別（任意）</label>
+          <input name="gender" className={inputClass} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className={labelClass}>生年月日（任意）</label>
+          <input type="date" name="date_of_birth" className={inputClass} />
+        </div>
+        <div className="flex flex-col gap-1">
           <label className={labelClass}>入学日（授業開始日）</label>
           <input
             type="date"
@@ -47,6 +55,10 @@ export default async function NewStudentPage() {
             required
             className={inputClass}
           />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className={labelClass}>卒業予定年月日（任意）</label>
+          <input type="date" name="expected_graduation_date" className={inputClass} />
         </div>
         <div className="flex flex-col gap-1">
           <label className={labelClass}>写真（任意）</label>
@@ -62,8 +74,12 @@ export default async function NewStudentPage() {
       <div className={`${cardClass} max-w-lg`}>
         <h2 className="mb-1 font-bold text-slate-900">CSV一括登録</h2>
         <p className="mb-3 text-xs text-slate-500">
-          1行につき「学籍番号,氏名,フリガナ,国籍(任意),YYYY-MM-DD,クラス名(任意)」の形式で入力してください。
+          「学籍番号,氏名,フリガナ,国籍,性別,生年月日,入学日,卒業予定年月日,クラス名」の形式のCSVファイルを選択してください（国籍・性別・生年月日・卒業予定年月日・クラス名は任意）。
           クラス名を指定すると、アクティブな学期の同名ホームルームクラスへ自動配属します。写真は登録後に個別にアップロードしてください。
+          <br />
+          <Link href="/students/new/template" className="text-blue-600 underline">
+            テンプレートCSVをダウンロード
+          </Link>
         </p>
         <SubmitForm
           action={importStudentsCsv}

@@ -90,12 +90,12 @@ export default async function SummaryPage({
           <Link href={`/summary/${classId}`} className="text-xs text-slate-400 underline">
             学期全体にリセット
           </Link>
-          <a
+          <Link
             href={`/summary/${classId}/export?${exportParams.toString()}`}
             className={buttonPrimaryClass}
           >
             Excelダウンロード
-          </a>
+          </Link>
         </div>
 
         <details className="rounded-lg border border-slate-200 bg-white p-3">
