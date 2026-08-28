@@ -30,6 +30,8 @@ export interface AttendanceRateResult {
   earlyCount: number;
   convertedAbsences: number;
   totalAbsences: number;
+  /** category='excused'（公欠）記号の合計weight */
+  excusedCount: number;
   /** 0〜1 の出席率。reqDays が 0 の場合は 0。 */
   rate: number;
   /** 記号ごとの集計日数（表示用）。symbolId -> 合計weight */
@@ -76,6 +78,7 @@ export function calculateAttendanceRate(
   let rawAbsCount = 0;
   let lateCount = 0;
   let earlyCount = 0;
+  let excusedCount = 0;
   const symbolCounts: Record<string, number> = {};
   for (const s of symbols) symbolCounts[s.id] = 0;
 
@@ -97,6 +100,9 @@ export function calculateAttendanceRate(
     if (symbol.category === "early_leave" && symbol.isLateEarlyTarget) {
       earlyCount += record.weight;
     }
+    if (symbol.category === "excused") {
+      excusedCount += record.weight;
+    }
   }
 
   const convertedAbsences = calcConvertedAbsences(
@@ -116,6 +122,7 @@ export function calculateAttendanceRate(
     earlyCount,
     convertedAbsences,
     totalAbsences,
+    excusedCount,
     rate,
     symbolCounts,
   };

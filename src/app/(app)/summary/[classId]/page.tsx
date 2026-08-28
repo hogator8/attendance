@@ -127,15 +127,27 @@ export default async function SummaryPage({
       {rosterList.length === 0 ? (
         <p className="text-sm text-slate-500">対象の学生がいません。</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
           <table className={tableClass}>
             <thead>
               <tr>
-                <th className={`${thClass} sticky left-0 bg-slate-50`}>学籍番号</th>
-                <th className={`${thClass} sticky left-20 bg-slate-50`}>氏名</th>
-                <th className={thClass}>フリガナ</th>
+                <th
+                  className={`${thClass} sticky top-0 left-0 z-30 w-28 min-w-28`}
+                >
+                  学籍番号
+                </th>
+                <th
+                  className={`${thClass} sticky top-0 left-28 z-30 w-48 min-w-48`}
+                >
+                  氏名
+                </th>
+                <th
+                  className={`${thClass} sticky top-0 left-[19rem] z-30 w-48 min-w-48`}
+                >
+                  フリガナ
+                </th>
                 {columns.map((c) => (
-                  <th key={c.key} className={thClass}>
+                  <th key={c.key} className={`${thClass} sticky top-0 z-20`}>
                     {c.label}
                   </th>
                 ))}
@@ -146,23 +158,31 @@ export default async function SummaryPage({
                 const summary = summaryByStudent.get(student.id);
                 return (
                   <tr key={student.id}>
-                    <td className={`${tdClass} sticky left-0 bg-white`}>
+                    <td className={`${tdClass} sticky left-0 z-10 w-28 min-w-28 bg-white`}>
                       {student.student_number}
                     </td>
-                    <td className={`${tdClass} sticky left-20 bg-white`}>{student.name}</td>
-                    <td className={tdClass}>{student.furigana}</td>
+                    <td className={`${tdClass} sticky left-28 z-10 w-48 min-w-48 bg-white`}>
+                      {student.name}
+                    </td>
+                    <td className={`${tdClass} sticky left-[19rem] z-10 w-48 min-w-48 bg-white`}>
+                      {student.furigana}
+                    </td>
                     {columns.map((c) => {
                       const isRateColumn = c.key.endsWith("_rate");
                       const value = getCellValue(c.key, student, summary, decimalDigits);
                       let color: string | null = null;
                       if (isRateColumn && summary) {
-                        const rate =
+                        // 要出席日数が0日の場合は「全欠席で出席率0%」と区別するため、
+                        // 出席率の色分けは適用しない（無色のまま表示する）
+                        const stats =
                           c.key === "cum_rate"
-                            ? summary.cumulative.rate
-                            : (summary.months.find(
+                            ? summary.cumulative
+                            : summary.months.find(
                                 (m) => `month_${m.year}_${m.month}_rate` === c.key,
-                              )?.rate ?? null);
-                        if (rate !== null) color = colorForRate(rate, colorRules);
+                              );
+                        if (stats && stats.reqDays > 0) {
+                          color = colorForRate(stats.rate, colorRules);
+                        }
                       }
                       return (
                         <td
