@@ -129,6 +129,7 @@ export async function assignHomeroom(formData: FormData) {
       .eq("id", current.id);
     if (error) throw new Error(error.message);
     revalidatePath(`/students/${studentId}`);
+    revalidatePath("/students");
     return;
   }
 
@@ -154,6 +155,7 @@ export async function assignHomeroom(formData: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
 }
 
 // 現在のホームルーム配属を、割当解除（配属終了日をセット）する。
@@ -169,6 +171,15 @@ export async function endHomeroomEnrollment(formData: FormData) {
     throw new Error("終了日を入力してください。");
   }
 
+  const { data: enrollment } = await supabase
+    .from("class_enrollments")
+    .select("valid_from")
+    .eq("id", enrollmentId)
+    .maybeSingle();
+  if (enrollment && validTo < enrollment.valid_from) {
+    throw new Error("配属解除日は配属開始日以降にしてください。");
+  }
+
   const { error } = await supabase
     .from("class_enrollments")
     .update({ valid_to: validTo })
@@ -176,6 +187,7 @@ export async function endHomeroomEnrollment(formData: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
 }
 
 export async function assignElective(formData: FormData) {
