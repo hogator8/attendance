@@ -24,8 +24,8 @@ export async function createStaffAccount(formData: FormData) {
   if (!name || !loginId || !password) {
     throw new Error("氏名・ログインID・初期パスワードは必須です。");
   }
-  if (password.length < 4) {
-    throw new Error("初期パスワードは4文字以上にしてください。");
+  if (password.length < 6) {
+    throw new Error("初期パスワードは6文字以上にしてください。");
   }
   if (!STAFF_ROLES.includes(role as StaffRole)) {
     throw new Error("役職の指定が不正です。");
