@@ -3,14 +3,16 @@ import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTerms } from "@/lib/terms";
 import SubmitForm from "@/components/SubmitForm";
+import ConfirmSubmitButton from "@/components/ConfirmSubmitButton";
 import { createStaffAccount } from "./actions";
-import { savePermissions } from "./[staffId]/actions";
+import { savePermissions, deleteStaffAccount } from "./[staffId]/actions";
 import {
   cardClass,
   inputClass,
   labelClass,
   buttonPrimaryClass,
   buttonSecondaryClass,
+  buttonDangerClass,
   tableClass,
   thClass,
   tdClass,
@@ -23,7 +25,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default async function StaffPage() {
-  await requirePermission("can_manage_staff");
+  const actor = await requirePermission("can_manage_staff");
   const supabase = await createClient();
   const terms = await getActiveTerms(supabase);
   const termIds = terms.map((t) => t.id);
@@ -90,6 +92,7 @@ export default async function StaffPage() {
                     </th>
                   ))}
                   <th className={thClass}></th>
+                  <th className={thClass}></th>
                 </tr>
               </thead>
               <tbody>
@@ -129,11 +132,27 @@ export default async function StaffPage() {
                         </button>
                       )}
                     </td>
+                    <td className={tdClass}>
+                      {s.id !== actor.id && (
+                        <SubmitForm
+                          action={deleteStaffAccount}
+                          successMessage="教員を削除しました"
+                        >
+                          <input type="hidden" name="staff_id" value={s.id} />
+                          <ConfirmSubmitButton
+                            confirmMessage={`${s.name}を削除します。よろしいですか？`}
+                            className={buttonDangerClass}
+                          >
+                            削除
+                          </ConfirmSubmitButton>
+                        </SubmitForm>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {(staffList ?? []).length === 0 && (
                   <tr>
-                    <td className={tdClass} colSpan={4 + (classes ?? []).length}>
+                    <td className={tdClass} colSpan={5 + (classes ?? []).length}>
                       教員が登録されていません。
                     </td>
                   </tr>
@@ -175,12 +194,12 @@ export default async function StaffPage() {
             <input name="login_id" required className={inputClass} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>初期パスワード（4文字以上）</label>
+            <label className={labelClass}>初期パスワード（6文字以上）</label>
             <input
               type="text"
               name="password"
               required
-              minLength={4}
+              minLength={6}
               className={inputClass}
             />
           </div>
