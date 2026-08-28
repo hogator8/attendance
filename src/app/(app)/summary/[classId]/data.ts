@@ -165,6 +165,50 @@ export async function getClassSummaryData(
     periodTo,
     months,
   );
+
+  // CSV取り込み（標準パターン）による過去の月別集計を、累計出席率に合算する
+  // （入学からの通算出席率を表示するため）。月別列自体には反映しない
+  // （月別列はこのクラスが属する学期の月のみを対象とするため）。
+  const { data: historicalRows } =
+    studentIds.length > 0
+      ? await supabase
+          .from("historical_monthly_summaries")
+          .select("student_id, required_days, absent_days, late_count, early_leave_count")
+          .in("student_id", studentIds)
+      : { data: [] };
+  const historicalByStudent = new Map<
+    string,
+    { requiredDays: number; absentDays: number; lateCount: number; earlyCount: number }
+  >();
+  for (const r of historicalRows ?? []) {
+    const acc = historicalByStudent.get(r.student_id) ?? {
+      requiredDays: 0,
+      absentDays: 0,
+      lateCount: 0,
+      earlyCount: 0,
+    };
+    acc.requiredDays += r.required_days;
+    acc.absentDays += r.absent_days;
+    acc.lateCount += r.late_count;
+    acc.earlyCount += r.early_leave_count;
+    historicalByStudent.set(r.student_id, acc);
+  }
+
+  for (const summary of summaries) {
+    const historical = historicalByStudent.get(summary.studentId);
+    if (!historical) continue;
+    const reqDays = summary.cumulative.reqDays + historical.requiredDays;
+    const totalAbsences = summary.cumulative.totalAbsences + historical.absentDays;
+    summary.cumulative = {
+      ...summary.cumulative,
+      reqDays,
+      totalAbsences,
+      lateCount: summary.cumulative.lateCount + historical.lateCount,
+      earlyCount: summary.cumulative.earlyCount + historical.earlyCount,
+      rate: reqDays > 0 ? (reqDays - totalAbsences) / reqDays : 0,
+    };
+  }
+
   const summaryByStudent = new Map(summaries.map((s) => [s.studentId, s]));
 
   return {
