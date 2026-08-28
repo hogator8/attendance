@@ -84,6 +84,14 @@ function IconCsv() {
     </svg>
   );
 }
+function IconStatus() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
+      <circle cx="10" cy="10" r="7" />
+      <path d="M10 6v4l2.5 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function Nav({
   staff,
@@ -99,6 +107,9 @@ export default function Nav({
     { href: "/summary", label: "集計", icon: <IconSummary /> },
     { href: "/csv-import", label: "CSV読み込み", icon: <IconCsv /> },
   ];
+  if (permissions.can_view_individual_records) {
+    links.push({ href: "/attendance-status", label: "出席状況", icon: <IconStatus /> });
+  }
   if (permissions.can_manage_students) {
     links.push({ href: "/students", label: "学生管理", icon: <IconStudents /> });
   }
