@@ -3,7 +3,9 @@ import Image from "next/image";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/date";
-import { buttonPrimaryClass, tableClass, thClass, tdClass } from "@/lib/ui";
+import { buttonPrimaryClass, buttonDangerClass, tableClass, thClass, tdClass } from "@/lib/ui";
+import TypeToConfirmDeleteButton from "@/components/TypeToConfirmDeleteButton";
+import { deleteStudent } from "./[studentId]/actions";
 import type { StudentStatus } from "@/lib/supabase/database.types";
 
 const STATUS_LABELS: Record<StudentStatus, string> = {
@@ -116,6 +118,7 @@ export default async function StudentsPage({
                   </Link>
                 </th>
               ))}
+              <th className={thClass}></th>
             </tr>
           </thead>
           <tbody>
@@ -163,11 +166,22 @@ export default async function StudentsPage({
                     {STATUS_LABELS[s.status]}
                   </span>
                 </td>
+                <td className={tdClass}>
+                  <TypeToConfirmDeleteButton
+                    action={deleteStudent}
+                    hiddenFields={{ student_id: s.id }}
+                    confirmText={s.student_number}
+                    confirmLabel={`削除するには学籍番号「${s.student_number}」を入力してください。出席記録も含めて完全に削除され、元に戻せません。`}
+                    successMessage="学生を削除しました"
+                    buttonLabel="削除"
+                    buttonClassName={buttonDangerClass}
+                  />
+                </td>
               </tr>
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td className={tdClass} colSpan={6}>
+                <td className={tdClass} colSpan={7}>
                   学生が登録されていません。
                 </td>
               </tr>

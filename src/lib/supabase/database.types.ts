@@ -678,6 +678,8 @@ export interface Database {
           absent_days: number;
           late_count: number;
           early_leave_count: number;
+          excused_days: number;
+          excluded_days: number;
           created_at: string;
         };
         Insert: {
@@ -689,6 +691,8 @@ export interface Database {
           absent_days?: number;
           late_count?: number;
           early_leave_count?: number;
+          excused_days?: number;
+          excluded_days?: number;
           created_at?: string;
         };
         Update: Partial<

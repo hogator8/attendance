@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { uploadStudentPhoto } from "@/lib/storage";
 import { getActiveTerms } from "@/lib/terms";
+import { readCsvFile } from "@/lib/csv";
 
 export async function createStudent(formData: FormData) {
   await requirePermission("can_manage_students");
@@ -53,8 +54,7 @@ export async function importStudentsCsv(formData: FormData) {
   await requirePermission("can_manage_students");
   const supabase = await createClient();
 
-  const csv = String(formData.get("csv") ?? "");
-  if (!csv.trim()) throw new Error("CSVを入力してください。");
+  const csv = await readCsvFile(formData);
 
   const lines = csv
     .split(/\r?\n/)

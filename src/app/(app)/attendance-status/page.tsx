@@ -1,16 +1,24 @@
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getStudentAttendanceStatus } from "./data";
+import {
+  getStudentAttendanceStatus,
+  buildDetailColumns,
+  resolveDetailColumns,
+} from "./data";
 import { formatPercent } from "@/lib/attendance/calc";
 import { inputClass, buttonSecondaryClass, cardClass, tableClass, thClass, tdClass } from "@/lib/ui";
 
 export default async function AttendanceStatusPage({
   searchParams,
 }: {
-  searchParams: Promise<{ student_id?: string }>;
+  searchParams: Promise<{
+    student_id?: string;
+    col?: string | string[];
+    cols_submitted?: string;
+  }>;
 }) {
   await requirePermission("can_view_individual_records");
-  const { student_id: studentId } = await searchParams;
+  const { student_id: studentId, col, cols_submitted } = await searchParams;
   const supabase = await createClient();
 
   const { data: students } = await supabase
@@ -27,6 +35,13 @@ export default async function AttendanceStatusPage({
     : { data: null };
 
   const status = student ? await getStudentAttendanceStatus(supabase, student.id) : null;
+  const detailColumnDefs = status ? buildDetailColumns(status, 1) : [];
+  const selectedColKeys = col ? (Array.isArray(col) ? col : [col]) : undefined;
+  const detailColumns = resolveDetailColumns(
+    detailColumnDefs,
+    cols_submitted ? selectedColKeys : undefined,
+  );
+  const selectedKeySet = new Set(detailColumns.map((c) => c.key));
 
   return (
     <div className="flex flex-col gap-6">
@@ -60,7 +75,7 @@ export default async function AttendanceStatusPage({
 
       {student && status && (
         <>
-          <div className={`${cardClass} max-w-md`}>
+          <div className={`${cardClass} max-w-2xl`}>
             <h2 className="mb-1 font-bold text-slate-900">
               {student.name}（{student.student_number}）
             </h2>
@@ -68,15 +83,37 @@ export default async function AttendanceStatusPage({
               入学日：{student.enrollment_date}
               {student.nationality && <> ／ 国籍：{student.nationality}</>}
             </p>
-            <div className="mt-3">
-              <p className="text-xs text-slate-500">累計要出席日数</p>
-              <p className="text-lg font-bold text-slate-900">{status.cumulative.reqDays}</p>
-            </div>
-            <div className="mt-2">
-              <p className="text-xs text-slate-500">累計出席率（入学からの通算）</p>
-              <p className="text-lg font-bold text-slate-900">
-                {formatPercent(status.cumulative.rate, 1)}
-              </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-slate-500">累計要出席日数</p>
+                <p className="text-lg font-bold text-slate-900">{status.cumulative.reqDays}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">累計出席率（入学からの通算）</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {formatPercent(status.cumulative.rate, 1)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">累計欠席日数</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {status.cumulative.rawAbsCount}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">累計遅刻回数</p>
+                <p className="text-lg font-bold text-slate-900">{status.cumulative.lateCount}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">累計早退回数</p>
+                <p className="text-lg font-bold text-slate-900">{status.cumulative.earlyCount}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">累計公欠日数</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {status.cumulative.excusedCount}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -90,7 +127,6 @@ export default async function AttendanceStatusPage({
                   <thead>
                     <tr>
                       <th className={thClass}>年月</th>
-                      <th className={thClass}>要出席日数</th>
                       <th className={thClass}>出席率</th>
                     </tr>
                   </thead>
@@ -98,10 +134,67 @@ export default async function AttendanceStatusPage({
                     {status.monthlyRows.map((m) => (
                       <tr key={m.key}>
                         <td className={tdClass}>{m.label}</td>
-                        <td className={tdClass}>{m.reqDays}</td>
                         <td className={tdClass}>{formatPercent(m.rate, 1)}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-2 font-bold text-slate-900">詳細</h2>
+            <form action="/attendance-status" className="mb-3 flex flex-col gap-3">
+              <input type="hidden" name="student_id" value={studentId} />
+              <details className="rounded-lg border border-slate-200 bg-white p-3">
+                <summary className="cursor-pointer text-sm font-bold text-slate-700">
+                  表示する項目を選択
+                </summary>
+                <input type="hidden" name="cols_submitted" value="1" />
+                <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3 lg:grid-cols-4">
+                  {detailColumnDefs.map((c) => (
+                    <label key={c.key} className="inline-flex items-center gap-1 text-xs">
+                      <input
+                        type="checkbox"
+                        name="col"
+                        value={c.key}
+                        defaultChecked={selectedKeySet.has(c.key)}
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <button type="submit" className={buttonSecondaryClass}>
+                    項目を反映
+                  </button>
+                </div>
+              </details>
+            </form>
+
+            {detailColumns.length === 0 ? (
+              <p className="text-sm text-slate-500">表示する項目を選択してください。</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className={tableClass}>
+                  <thead>
+                    <tr>
+                      {detailColumns.map((c) => (
+                        <th key={c.key} className={thClass}>
+                          {c.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      {detailColumns.map((c) => (
+                        <td key={c.key} className={tdClass}>
+                          {c.value}
+                        </td>
+                      ))}
+                    </tr>
                   </tbody>
                 </table>
               </div>

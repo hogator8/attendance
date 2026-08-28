@@ -405,6 +405,11 @@ export default async function AttendanceInputPage({
               本日は通常授業がなく、対象の行事もありません。
             </p>
           )}
+          {!skipNormalPeriods && periods.length === 0 && applicableEvents.length === 0 && (
+            <p className="text-sm text-slate-500">
+              この日・この曜日の時間割が設定されていません。
+            </p>
+          )}
         </div>
       )}
 

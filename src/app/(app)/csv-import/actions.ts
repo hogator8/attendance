@@ -4,9 +4,11 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission, canInputClass } from "@/lib/permissions";
+import { readCsvFile } from "@/lib/csv";
 
 // 標準パターン：月別集計のみのCSV取り込み。
-// 1行につき「学籍番号,年月(YYYY-MM),要出席日数,出席日数,欠席日数,遅刻回数,早退回数」
+// 1行につき「学籍番号,年月(YYYY-MM),要出席日数,出席日数,欠席日数,遅刻回数,早退回数,公欠日数,除外日数」
+// （出席記号設定の集計区分 attendance/absence/late/early_leave/excused/excluded の6区分に対応）
 export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
   const staff = await requireStaff();
   const supabase = await createClient();
@@ -14,8 +16,7 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
   const allowed = await hasPermission(supabase, staff, "can_manage_students");
   if (!allowed) throw new Error("この操作を行う権限がありません。");
 
-  const csv = String(formData.get("csv") ?? "");
-  if (!csv.trim()) throw new Error("CSVを入力してください。");
+  const csv = await readCsvFile(formData);
 
   const lines = csv
     .split(/\r?\n/)
@@ -30,10 +31,12 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
     absentDays: number;
     lateCount: number;
     earlyLeaveCount: number;
+    excusedDays: number;
+    excludedDays: number;
   };
   const rows: Row[] = lines.map((line) => {
     const cols = line.split(",").map((s) => s.trim());
-    const [studentNumber, yearMonth, req, attended, absent, late, early] = cols;
+    const [studentNumber, yearMonth, req, attended, absent, late, early, excused, excluded] = cols;
     return {
       studentNumber: studentNumber ?? "",
       yearMonth: yearMonth ?? "",
@@ -42,6 +45,8 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
       absentDays: Number(absent ?? "0"),
       lateCount: Number(late ?? "0"),
       earlyLeaveCount: Number(early ?? "0"),
+      excusedDays: Number(excused ?? "0"),
+      excludedDays: Number(excluded ?? "0"),
     };
   });
 
@@ -49,13 +54,19 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
     (r) =>
       !r.studentNumber ||
       !/^\d{4}-\d{2}$/.test(r.yearMonth) ||
-      [r.requiredDays, r.attendedDays, r.absentDays, r.lateCount, r.earlyLeaveCount].some(
-        (n) => !Number.isFinite(n) || n < 0,
-      ),
+      [
+        r.requiredDays,
+        r.attendedDays,
+        r.absentDays,
+        r.lateCount,
+        r.earlyLeaveCount,
+        r.excusedDays,
+        r.excludedDays,
+      ].some((n) => !Number.isFinite(n) || n < 0),
   );
   if (invalid) {
     throw new Error(
-      "CSVの形式が不正です。各行「学籍番号,YYYY-MM,要出席日数,出席日数,欠席日数,遅刻回数,早退回数」で入力してください。",
+      "CSVの形式が不正です。各行「学籍番号,YYYY-MM,要出席日数,出席日数,欠席日数,遅刻回数,早退回数,公欠日数,除外日数」で入力してください。",
     );
   }
 
@@ -81,6 +92,8 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
     absent_days: r.absentDays,
     late_count: r.lateCount,
     early_leave_count: r.earlyLeaveCount,
+    excused_days: r.excusedDays,
+    excluded_days: r.excludedDays,
   }));
 
   const { error } = await supabase
@@ -99,9 +112,8 @@ export async function importHistoricalAttendanceCsv(formData: FormData) {
   const supabase = await createClient();
 
   const classId = String(formData.get("class_id") ?? "");
-  const csv = String(formData.get("csv") ?? "");
   if (!classId) throw new Error("クラスを選択してください。");
-  if (!csv.trim()) throw new Error("CSVを入力してください。");
+  const csv = await readCsvFile(formData);
 
   const allowed = await canInputClass(supabase, staff, classId);
   if (!allowed) throw new Error("このクラスへの出席入力権限がありません。");

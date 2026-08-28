@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { uploadStudentPhoto } from "@/lib/storage";
+import { addDays } from "@/lib/date";
 import type { StudentStatus } from "@/lib/supabase/database.types";
 
 export async function updateStudentInfo(formData: FormData) {
@@ -43,6 +44,24 @@ export async function updateStudentInfo(formData: FormData) {
   }
 
   revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
+}
+
+// 学生を完全に削除する。出席記録(attendance_records/event_attendance)・
+// 所属履歴(class_enrollments/elective_memberships)・過去データ
+// (historical_monthly_summaries)は students への外部キーが on delete cascade
+// のため連動して削除される。呼び出し側（学生一覧）で学籍番号の入力による
+// 確認を必須にしている。
+export async function deleteStudent(formData: FormData) {
+  await requirePermission("can_manage_students");
+  const supabase = await createClient();
+
+  const studentId = String(formData.get("student_id") ?? "");
+  if (!studentId) throw new Error("学生IDが不正です。");
+
+  const { error } = await supabase.from("students").delete().eq("id", studentId);
+  if (error) throw new Error(error.message);
+
   revalidatePath("/students");
 }
 
@@ -117,11 +136,7 @@ export async function assignHomeroom(formData: FormData) {
     if (current.valid_from >= validFrom) {
       throw new Error("異動日は現在の所属開始日より後にしてください。");
     }
-    const prevDay = new Date(`${validFrom}T00:00:00+09:00`);
-    prevDay.setDate(prevDay.getDate() - 1);
-    const closeDate = prevDay.toLocaleDateString("sv-SE", {
-      timeZone: "Asia/Tokyo",
-    });
+    const closeDate = addDays(validFrom, -1);
     const { error } = await supabase
       .from("class_enrollments")
       .update({ valid_to: closeDate })

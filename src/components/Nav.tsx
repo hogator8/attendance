@@ -135,7 +135,7 @@ export default function Nav({
               <Link
                 key={link.href}
                 href={link.href}
-                className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                className="flex w-32 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
               >
                 {link.icon}
                 {link.label}

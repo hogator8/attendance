@@ -173,12 +173,20 @@ export async function getClassSummaryData(
     studentIds.length > 0
       ? await supabase
           .from("historical_monthly_summaries")
-          .select("student_id, required_days, absent_days, late_count, early_leave_count")
+          .select(
+            "student_id, required_days, absent_days, late_count, early_leave_count, excused_days",
+          )
           .in("student_id", studentIds)
       : { data: [] };
   const historicalByStudent = new Map<
     string,
-    { requiredDays: number; absentDays: number; lateCount: number; earlyCount: number }
+    {
+      requiredDays: number;
+      absentDays: number;
+      lateCount: number;
+      earlyCount: number;
+      excusedDays: number;
+    }
   >();
   for (const r of historicalRows ?? []) {
     const acc = historicalByStudent.get(r.student_id) ?? {
@@ -186,11 +194,13 @@ export async function getClassSummaryData(
       absentDays: 0,
       lateCount: 0,
       earlyCount: 0,
+      excusedDays: 0,
     };
     acc.requiredDays += r.required_days;
     acc.absentDays += r.absent_days;
     acc.lateCount += r.late_count;
     acc.earlyCount += r.early_leave_count;
+    acc.excusedDays += r.excused_days;
     historicalByStudent.set(r.student_id, acc);
   }
 
@@ -205,6 +215,7 @@ export async function getClassSummaryData(
       totalAbsences,
       lateCount: summary.cumulative.lateCount + historical.lateCount,
       earlyCount: summary.cumulative.earlyCount + historical.earlyCount,
+      excusedCount: summary.cumulative.excusedCount + historical.excusedDays,
       rate: reqDays > 0 ? (reqDays - totalAbsences) / reqDays : 0,
     };
   }
@@ -245,6 +256,7 @@ export function buildColumnDefs(
     { key: "cum_early", label: "累計早退回数", defaultOn: false },
     { key: "cum_converted_abs", label: "累計換算欠席日数", defaultOn: false },
     { key: "cum_total_abs", label: "累計合計欠席日数", defaultOn: false },
+    { key: "cum_excused", label: "累計公欠日数", defaultOn: false },
   ];
   for (const s of symbolRows) {
     cols.push({
@@ -294,6 +306,7 @@ export function getCellValue(
   if (key === "cum_early") return String(summary.cumulative.earlyCount);
   if (key === "cum_converted_abs") return String(summary.cumulative.convertedAbsences);
   if (key === "cum_total_abs") return String(summary.cumulative.totalAbsences);
+  if (key === "cum_excused") return String(summary.cumulative.excusedCount);
 
   if (key.startsWith("cum_symbol_")) {
     const symbolId = key.slice("cum_symbol_".length);

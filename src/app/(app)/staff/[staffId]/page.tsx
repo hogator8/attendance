@@ -132,12 +132,12 @@ export default async function StaffDetailPage({
         >
           <input type="hidden" name="staff_id" value={staff.id} />
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>新しいパスワード（4文字以上）</label>
+            <label className={labelClass}>新しいパスワード（6文字以上）</label>
             <input
               type="text"
               name="password"
               required
-              minLength={4}
+              minLength={6}
               className={inputClass}
             />
           </div>
