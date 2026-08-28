@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { syncElectiveSlotFlags } from "@/lib/timetable";
+import { addDays } from "@/lib/date";
 
 const MAX_PERIODS = 10;
 const DAYS = [1, 2, 3, 4, 5, 6, 0]; // 月火水木金土日（表示順）。値はJSのgetDay()と同じ0=日〜6=土
@@ -48,11 +49,7 @@ export async function createTimetableVersion(formData: FormData) {
         "既存の時間割バージョンより後の日付を指定してください。",
       );
     }
-    const prevDay = new Date(`${effectiveFrom}T00:00:00+09:00`);
-    prevDay.setDate(prevDay.getDate() - 1);
-    const effectiveTo = prevDay.toLocaleDateString("sv-SE", {
-      timeZone: "Asia/Tokyo",
-    });
+    const effectiveTo = addDays(effectiveFrom, -1);
     await supabase
       .from("timetable_versions")
       .update({ effective_to: effectiveTo })

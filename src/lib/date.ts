@@ -8,8 +8,15 @@ export function todayISO(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 }
 
+// dateISO（YYYY-MM-DD）はタイムゾーンを持たない「暦日」として扱う。
+// `new Date(`${dateISO}T00:00:00+09:00`).getDay()` のように実行環境のローカル
+// タイムゾーンに依存する方法で曜日を求めると、ローカル開発環境（JST等）と
+// Vercel本番環境（UTC）とで結果がずれてしまう（本番では常に1日前の曜日になる）。
+// Date.UTC + getUTCDay() は実行環境のタイムゾーンに一切依存しないため、
+// 暦日としてのYYYY-MM-DDから曜日を求める処理は必ずこちらを使うこと。
 export function dayOfWeekOf(dateISO: string): number {
-  return new Date(`${dateISO}T00:00:00+09:00`).getDay();
+  const [y, m, d] = dateISO.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
 export function formatDateLabel(dateISO: string): string {
@@ -18,10 +25,13 @@ export function formatDateLabel(dateISO: string): string {
   return `${Number(month)}/${Number(day)} (${dow})`;
 }
 
+// dayOfWeekOf と同じ理由で、日付の加減算も実行環境のタイムゾーンに依存しない
+// UTCベースの暦日演算で行う。
 export function addDays(dateISO: string, days: number): string {
-  const d = new Date(`${dateISO}T00:00:00+09:00`);
-  d.setDate(d.getDate() + days);
-  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 export interface MonthBucket {
