@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTerm } from "@/lib/terms";
+import { getActiveTerms } from "@/lib/terms";
 import SubmitForm from "@/components/SubmitForm";
 import { updateStaffInfo, updateStaffPassword, savePermissions } from "./actions";
 import {
@@ -41,15 +41,19 @@ export default async function StaffDetailPage({
     .maybeSingle();
   if (!staff) notFound();
 
-  const activeTerm = await getActiveTerm(supabase);
-  const { data: classes } = activeTerm
-    ? await supabase
-        .from("classes")
-        .select("*")
-        .eq("term_id", activeTerm.id)
-        .order("type")
-        .order("name")
-    : { data: [] };
+  const activeTerms = await getActiveTerms(supabase);
+  const activeTermIds = activeTerms.map((t) => t.id);
+  const termNameById = new Map(activeTerms.map((t) => [t.id, t.name]));
+  const showTermLabel = activeTerms.length > 1;
+  const { data: classes } =
+    activeTermIds.length > 0
+      ? await supabase
+          .from("classes")
+          .select("*")
+          .in("term_id", activeTermIds)
+          .order("type")
+          .order("name")
+      : { data: [] };
 
   const { data: permissions } = await supabase
     .from("staff_class_permissions")
@@ -188,7 +192,7 @@ export default async function StaffDetailPage({
               <h3 className="mb-2 text-sm font-bold text-slate-700">
                 クラスごとの出席入力権限
               </h3>
-              {!activeTerm ? (
+              {activeTerms.length === 0 ? (
                 <p className="text-sm text-slate-500">
                   アクティブな学期がないため、クラス権限を設定できません。
                 </p>
@@ -211,7 +215,8 @@ export default async function StaffDetailPage({
                             <td className={tdClass}>
                               {c.name}
                               <span className="ml-1 text-xs text-slate-400">
-                                （{c.type === "homeroom" ? "ホームルーム" : "選択科目"}）
+                                （{c.type === "homeroom" ? "ホームルーム" : "選択科目"}
+                                {showTermLabel && `／${termNameById.get(c.term_id)}`}）
                               </span>
                               <input type="hidden" name="class_id" value={c.id} />
                             </td>

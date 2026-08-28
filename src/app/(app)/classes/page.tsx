@@ -1,20 +1,28 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTerm } from "@/lib/terms";
 import SubmitForm from "@/components/SubmitForm";
 import { createClass } from "./actions";
 import { cardClass, inputClass, labelClass, buttonPrimaryClass } from "@/lib/ui";
 
-export default async function ClassesPage() {
+export default async function ClassesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ term_id?: string }>;
+}) {
   await requireAdmin();
+  const { term_id: termIdParam } = await searchParams;
   const supabase = await createClient();
-  const term = await getActiveTerm(supabase);
 
-  if (!term) {
+  const { data: terms } = await supabase
+    .from("terms")
+    .select("*")
+    .order("start_date", { ascending: false });
+
+  if (!terms || terms.length === 0) {
     return (
       <p className="text-sm text-slate-500">
-        アクティブな学期がありません。先に
+        学期がまだ登録されていません。先に
         <Link href="/settings/terms" className="mx-1 text-blue-600 underline">
           学期設定
         </Link>
@@ -22,6 +30,11 @@ export default async function ClassesPage() {
       </p>
     );
   }
+
+  const term =
+    terms.find((t) => t.id === termIdParam) ??
+    terms.find((t) => t.is_active) ??
+    terms[0];
 
   const { data: classes } = await supabase
     .from("classes")
@@ -37,7 +50,24 @@ export default async function ClassesPage() {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-xl font-bold text-slate-900">クラス管理</h1>
-        <p className="text-xs text-slate-500">現在の学期：{term.name}</p>
+        <form className="mt-2 flex items-center gap-2">
+          <label className="text-xs text-slate-500">対象の学期</label>
+          <select
+            name="term_id"
+            defaultValue={term.id}
+            className={`${inputClass} w-auto`}
+          >
+            {terms.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+                {t.is_active ? "（アクティブ）" : ""}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="text-xs text-blue-600 underline">
+            切り替え
+          </button>
+        </form>
       </div>
 
       <section>

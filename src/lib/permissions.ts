@@ -45,17 +45,20 @@ export async function canInputClass(
   return !!data?.can_input;
 }
 
-// staff が出席入力可能なクラス一覧（termIdで絞り込み）。
+// staff が出席入力可能なクラス一覧（termIds＝対象の学期ID一覧で絞り込み）。
+// 学期は複数同時にアクティブになりうるため、対象学期は配列で受け取る。
 export async function getInputAccessibleClasses(
   supabase: Client,
   staff: CurrentStaff,
-  termId: string,
+  termIds: string[],
 ): Promise<ClassRow[]> {
+  if (termIds.length === 0) return [];
+
   if (staff.role === "admin") {
     const { data, error } = await supabase
       .from("classes")
       .select("*")
-      .eq("term_id", termId)
+      .in("term_id", termIds)
       .order("type")
       .order("name");
     if (error) throw error;
@@ -71,24 +74,25 @@ export async function getInputAccessibleClasses(
 
   return (data ?? [])
     .map((row) => row.class as ClassRow | null)
-    .filter((c): c is ClassRow => !!c && c.term_id === termId)
+    .filter((c): c is ClassRow => !!c && termIds.includes(c.term_id))
     .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 }
 
 // can_view_summary を持つ staff が閲覧可能なクラス一覧（全体権限のため、
-// 権限があれば term 内の全クラス、なければ空配列）。
+// 権限があれば対象学期内の全クラス、なければ空配列）。
 export async function getSummaryAccessibleClasses(
   supabase: Client,
   staff: CurrentStaff,
-  termId: string,
+  termIds: string[],
 ): Promise<ClassRow[]> {
+  if (termIds.length === 0) return [];
   const allowed = await hasPermission(supabase, staff, "can_view_summary");
   if (!allowed) return [];
 
   const { data, error } = await supabase
     .from("classes")
     .select("*")
-    .eq("term_id", termId)
+    .in("term_id", termIds)
     .order("type")
     .order("name");
   if (error) throw error;

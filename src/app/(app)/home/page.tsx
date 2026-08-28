@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTerm } from "@/lib/terms";
+import { getActiveTerms } from "@/lib/terms";
 import {
   getInputAccessibleClasses,
   getSummaryAccessibleClasses,
@@ -11,10 +11,10 @@ import { todayISO, formatDateLabel } from "@/lib/date";
 export default async function HomePage() {
   const staff = await requireStaff();
   const supabase = await createClient();
-  const term = await getActiveTerm(supabase);
+  const terms = await getActiveTerms(supabase);
   const today = todayISO();
 
-  if (!term) {
+  if (terms.length === 0) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
         {staff.role === "admin" ? (
@@ -32,16 +32,11 @@ export default async function HomePage() {
     );
   }
 
-  const inputClasses = await getInputAccessibleClasses(
-    supabase,
-    staff,
-    term.id,
-  );
-  const viewClasses = await getSummaryAccessibleClasses(
-    supabase,
-    staff,
-    term.id,
-  );
+  const termIds = terms.map((t) => t.id);
+  const termNameById = new Map(terms.map((t) => [t.id, t.name]));
+
+  const inputClasses = await getInputAccessibleClasses(supabase, staff, termIds);
+  const viewClasses = await getSummaryAccessibleClasses(supabase, staff, termIds);
 
   const viewOnlyIds = new Set(
     viewClasses
@@ -52,11 +47,17 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <p className="text-sm text-slate-500">現在の学期</p>
-        <p className="text-lg font-bold text-slate-900">{term.name}</p>
-        <p className="text-xs text-slate-400">
-          {term.start_date} 〜 {term.end_date}
-        </p>
+        <p className="text-sm text-slate-500">アクティブな学期</p>
+        <ul className="mt-1 flex flex-col gap-1">
+          {terms.map((term) => (
+            <li key={term.id}>
+              <span className="font-bold text-slate-900">{term.name}</span>
+              <span className="ml-2 text-xs text-slate-400">
+                {term.start_date} 〜 {term.end_date}
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <section>
@@ -81,6 +82,11 @@ export default async function HomePage() {
                     </span>
                     <p className="mt-1 font-medium text-slate-900">
                       {cls.name}
+                      {terms.length > 1 && (
+                        <span className="ml-1 text-xs font-normal text-slate-400">
+                          （{termNameById.get(cls.term_id)}）
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="mt-auto flex gap-2 text-sm">

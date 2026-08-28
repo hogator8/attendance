@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTerm } from "@/lib/terms";
+import { getActiveTerms } from "@/lib/terms";
 import SubmitForm from "@/components/SubmitForm";
 import { createStaffAccount } from "./actions";
 import { savePermissions } from "./[staffId]/actions";
@@ -25,7 +25,10 @@ const ROLE_LABEL: Record<string, string> = {
 export default async function StaffPage() {
   await requirePermission("can_manage_staff");
   const supabase = await createClient();
-  const term = await getActiveTerm(supabase);
+  const terms = await getActiveTerms(supabase);
+  const termIds = terms.map((t) => t.id);
+  const termNameById = new Map(terms.map((t) => [t.id, t.name]));
+  const showTermLabel = terms.length > 1;
 
   const { data: staffList } = await supabase
     .from("staff")
@@ -33,14 +36,15 @@ export default async function StaffPage() {
     .order("role")
     .order("name");
 
-  const { data: classes } = term
-    ? await supabase
-        .from("classes")
-        .select("*")
-        .eq("term_id", term.id)
-        .order("type")
-        .order("name")
-    : { data: [] };
+  const { data: classes } =
+    termIds.length > 0
+      ? await supabase
+          .from("classes")
+          .select("*")
+          .in("term_id", termIds)
+          .order("type")
+          .order("name")
+      : { data: [] };
 
   const { data: permissions } = await supabase
     .from("staff_class_permissions")
@@ -61,7 +65,7 @@ export default async function StaffPage() {
       <h1 className="text-xl font-bold text-slate-900">教員管理</h1>
 
       <div key={permKey}>
-        {!term ? (
+        {terms.length === 0 ? (
           <p className="text-sm text-slate-500">
             アクティブな学期がないため、クラス権限は設定できません。
           </p>
@@ -81,6 +85,7 @@ export default async function StaffPage() {
                       <br />
                       <span className="text-[10px] font-normal text-slate-400">
                         {c.type === "homeroom" ? "ホームルーム" : "選択科目"}
+                        {showTermLabel && `／${termNameById.get(c.term_id)}`}
                       </span>
                     </th>
                   ))}

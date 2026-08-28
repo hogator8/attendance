@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTerm } from "@/lib/terms";
+import { getActiveTerms } from "@/lib/terms";
 import { todayISO } from "@/lib/date";
 import SubmitForm from "@/components/SubmitForm";
 import {
@@ -41,23 +41,26 @@ export default async function StudentDetailPage({
     .maybeSingle();
   if (!student) notFound();
 
-  const activeTerm = await getActiveTerm(supabase);
-  const { data: homeroomClasses } = activeTerm
-    ? await supabase
-        .from("classes")
-        .select("*")
-        .eq("term_id", activeTerm.id)
-        .eq("type", "homeroom")
-        .order("name")
-    : { data: [] };
-  const { data: electiveClasses } = activeTerm
-    ? await supabase
-        .from("classes")
-        .select("*")
-        .eq("term_id", activeTerm.id)
-        .eq("type", "elective")
-        .order("name")
-    : { data: [] };
+  const activeTerms = await getActiveTerms(supabase);
+  const activeTermIds = activeTerms.map((t) => t.id);
+  const { data: homeroomClasses } =
+    activeTermIds.length > 0
+      ? await supabase
+          .from("classes")
+          .select("*")
+          .in("term_id", activeTermIds)
+          .eq("type", "homeroom")
+          .order("name")
+      : { data: [] };
+  const { data: electiveClasses } =
+    activeTermIds.length > 0
+      ? await supabase
+          .from("classes")
+          .select("*")
+          .in("term_id", activeTermIds)
+          .eq("type", "elective")
+          .order("name")
+      : { data: [] };
 
   const { data: enrollments } = await supabase
     .from("class_enrollments")
@@ -222,7 +225,7 @@ export default async function StudentDetailPage({
           )}
         </p>
 
-        {activeTerm ? (
+        {activeTerms.length > 0 ? (
           <SubmitForm
             action={assignHomeroom}
             successMessage="クラス配属を更新しました"
@@ -333,7 +336,7 @@ export default async function StudentDetailPage({
           </ul>
         )}
 
-        {activeTerm ? (
+        {activeTerms.length > 0 ? (
           <SubmitForm
             action={assignElective}
             successMessage="選択科目を追加しました"
