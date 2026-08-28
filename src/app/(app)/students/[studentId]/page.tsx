@@ -291,7 +291,7 @@ export default async function StudentDetailPage({
                 type="date"
                 name="valid_from"
                 required
-                defaultValue={today}
+                defaultValue={currentEnrollment ? today : student.enrollment_date}
                 className={inputClass}
               />
             </div>
