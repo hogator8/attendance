@@ -7,7 +7,7 @@ import {
   type RawAttendanceRecord,
   type RawEventRecord,
 } from "@/lib/attendance/summary";
-import type { SymbolInfo, AttendanceRateResult } from "@/lib/attendance/calc";
+import { formatPercent, type SymbolInfo, type AttendanceRateResult } from "@/lib/attendance/calc";
 
 type Client = SupabaseClient<Database>;
 type Term = Database["public"]["Tables"]["terms"]["Row"];
@@ -34,6 +34,8 @@ export interface StudentAttendanceStatus {
   cumulative: AttendanceRateResult;
   monthlyRows: MonthlyRow[];
   dailyRecords: DailyRecord[];
+  // 記号ごとの累計回数（"記号:項目名" をキーにして全所属学期を横断集計）
+  symbolCountsByLabel: Map<string, number>;
 }
 
 // 学生1人分の、入学からの通算出席状況を計算する。
@@ -71,8 +73,14 @@ export async function getStudentAttendanceStatus(
       : { data: [] };
 
   let totalReqDays = 0;
+  let totalRawAbs = 0;
+  let totalLate = 0;
+  let totalEarly = 0;
+  let totalConvertedAbs = 0;
   let totalAbsences = 0;
+  let totalExcused = 0;
   const monthlyRows: MonthlyRow[] = [];
+  const symbolCountsByLabel = new Map<string, number>();
 
   for (const term of (terms ?? []) as Term[]) {
     const [{ data: symbolRows }, { data: conversionRule }] = await Promise.all([
@@ -85,6 +93,9 @@ export async function getStudentAttendanceStatus(
       countsAsRequired: s.counts_as_required,
       isLateEarlyTarget: s.is_late_early_target,
     }));
+    const symbolLabelById = new Map(
+      (symbolRows ?? []).map((s) => [s.id, `${s.symbol_char}：${s.label}`]),
+    );
     const rule = {
       lateN: conversionRule?.late_n ?? 0,
       earlyN: conversionRule?.early_n ?? 0,
@@ -147,7 +158,18 @@ export async function getStudentAttendanceStatus(
     );
 
     totalReqDays += summary.cumulative.reqDays;
+    totalRawAbs += summary.cumulative.rawAbsCount;
+    totalLate += summary.cumulative.lateCount;
+    totalEarly += summary.cumulative.earlyCount;
+    totalConvertedAbs += summary.cumulative.convertedAbsences;
     totalAbsences += summary.cumulative.totalAbsences;
+    totalExcused += summary.cumulative.excusedCount;
+
+    for (const [symbolId, count] of Object.entries(summary.cumulative.symbolCounts)) {
+      if (count === 0) continue;
+      const label = symbolLabelById.get(symbolId) ?? symbolId;
+      symbolCountsByLabel.set(label, (symbolCountsByLabel.get(label) ?? 0) + count);
+    }
 
     for (const m of summary.months) {
       monthlyRows.push({
@@ -167,7 +189,11 @@ export async function getStudentAttendanceStatus(
     .order("year_month");
   for (const h of historicalRows ?? []) {
     totalReqDays += h.required_days;
+    totalRawAbs += h.absent_days;
+    totalLate += h.late_count;
+    totalEarly += h.early_leave_count;
     totalAbsences += h.absent_days;
+    totalExcused += h.excused_days;
     const [y, m] = h.year_month.split("-").map(Number);
     monthlyRows.push({
       key: `${y}-${m}-historical`,
@@ -182,11 +208,12 @@ export async function getStudentAttendanceStatus(
 
   const cumulative: AttendanceRateResult = {
     reqDays: totalReqDays,
-    rawAbsCount: 0,
-    lateCount: 0,
-    earlyCount: 0,
-    convertedAbsences: 0,
+    rawAbsCount: totalRawAbs,
+    lateCount: totalLate,
+    earlyCount: totalEarly,
+    convertedAbsences: totalConvertedAbs,
     totalAbsences,
+    excusedCount: totalExcused,
     rate: totalReqDays > 0 ? (totalReqDays - totalAbsences) / totalReqDays : 0,
     symbolCounts: {},
   };
@@ -207,5 +234,75 @@ export async function getStudentAttendanceStatus(
     reason: r.reason,
   }));
 
-  return { cumulative, monthlyRows, dailyRecords };
+  return { cumulative, monthlyRows, dailyRecords, symbolCountsByLabel };
+}
+
+export interface DetailColumnDef {
+  key: string;
+  label: string;
+  value: string;
+  defaultOn: boolean;
+}
+
+// 集計ページの列選択テーブルと同じ発想で、この学生1名分の全項目を
+// キー・値のペアとして返す（「詳細」セクション用）。
+export function buildDetailColumns(
+  status: StudentAttendanceStatus,
+  decimalDigits: number,
+): DetailColumnDef[] {
+  const c = status.cumulative;
+  const cols: DetailColumnDef[] = [
+    { key: "cum_req_days", label: "累計要出席日数", value: String(c.reqDays), defaultOn: false },
+    {
+      key: "cum_rate",
+      label: "累計出席率",
+      value: formatPercent(c.rate, decimalDigits),
+      defaultOn: true,
+    },
+    { key: "cum_raw_abs", label: "累計欠席日数", value: String(c.rawAbsCount), defaultOn: false },
+    { key: "cum_late", label: "累計遅刻回数", value: String(c.lateCount), defaultOn: false },
+    { key: "cum_early", label: "累計早退回数", value: String(c.earlyCount), defaultOn: false },
+    {
+      key: "cum_converted_abs",
+      label: "累計換算欠席日数",
+      value: String(c.convertedAbsences),
+      defaultOn: false,
+    },
+    {
+      key: "cum_total_abs",
+      label: "累計合計欠席日数",
+      value: String(c.totalAbsences),
+      defaultOn: false,
+    },
+    { key: "cum_excused", label: "累計公欠日数", value: String(c.excusedCount), defaultOn: false },
+  ];
+  for (const [label, count] of status.symbolCountsByLabel.entries()) {
+    cols.push({ key: `symbol_${label}`, label: `累計${label}`, value: String(count), defaultOn: false });
+  }
+  for (const m of status.monthlyRows) {
+    cols.push({
+      key: `month_${m.key}_req`,
+      label: `${m.label}　要出席日数`,
+      value: String(m.reqDays),
+      defaultOn: false,
+    });
+    cols.push({
+      key: `month_${m.key}_rate`,
+      label: `${m.label}　出席率`,
+      value: formatPercent(m.rate, decimalDigits),
+      defaultOn: true,
+    });
+  }
+  return cols;
+}
+
+export function resolveDetailColumns(
+  defs: DetailColumnDef[],
+  selected: string[] | undefined,
+): DetailColumnDef[] {
+  if (!selected || selected.length === 0) {
+    return defs.filter((c) => c.defaultOn);
+  }
+  const selectedSet = new Set(selected);
+  return defs.filter((c) => selectedSet.has(c.key));
 }
