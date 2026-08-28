@@ -69,7 +69,9 @@ export default async function StudentDetailPage({
     .select("*, class:classes(name)")
     .eq("student_id", studentId)
     .order("valid_from", { ascending: false });
-  const currentEnrollment = enrollments?.find((e) => e.valid_to === null);
+  const currentEnrollment = enrollments?.find(
+    (e) => e.valid_to === null || e.valid_to >= today,
+  );
 
   const { data: electiveMemberships } = await supabase
     .from("elective_memberships")
