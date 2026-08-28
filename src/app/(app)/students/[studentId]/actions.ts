@@ -200,6 +200,122 @@ export async function endHomeroomEnrollment(formData: FormData) {
   revalidatePath("/students");
 }
 
+// 配属記録（クラス・出席番号・期間）を直接訂正する。クラスまたは期間を
+// 変更する場合は、変更前の内容（クラス・期間）に基づいて記録されていた
+// 出席情報を残すか削除するかを選べる。
+export async function editHomeroomEnrollment(formData: FormData) {
+  await requirePermission("can_manage_students");
+  const supabase = await createClient();
+
+  const enrollmentId = String(formData.get("enrollment_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const classId = String(formData.get("class_id") ?? "");
+  const validFrom = String(formData.get("valid_from") ?? "");
+  const validTo = String(formData.get("valid_to") ?? "").trim();
+  const seqNoRaw = String(formData.get("seq_no") ?? "");
+  const seqNo = seqNoRaw ? Number(seqNoRaw) : null;
+  const attendanceHandling = String(formData.get("attendance_handling") ?? "keep");
+
+  if (!enrollmentId || !studentId || !classId || !validFrom) {
+    throw new Error("クラス・配属開始日を入力してください。");
+  }
+  if (validTo && validTo < validFrom) {
+    throw new Error("配属終了日は開始日以降にしてください。");
+  }
+
+  const { data: before } = await supabase
+    .from("class_enrollments")
+    .select("class_id, valid_from, valid_to")
+    .eq("id", enrollmentId)
+    .maybeSingle();
+  if (!before) throw new Error("対象の配属記録が見つかりません。");
+
+  const changed =
+    before.class_id !== classId ||
+    before.valid_from !== validFrom ||
+    (before.valid_to ?? "") !== (validTo || "");
+
+  const { error } = await supabase
+    .from("class_enrollments")
+    .update({
+      class_id: classId,
+      seq_no: seqNo,
+      valid_from: validFrom,
+      valid_to: validTo || null,
+    })
+    .eq("id", enrollmentId);
+  if (error) {
+    if (error.code === "23P01") {
+      throw new Error("指定した期間が、同じ学生の別のクラス配属と重なっています。");
+    }
+    throw new Error(error.message);
+  }
+
+  // クラス・期間を実際に変更した場合のみ、出席情報の削除選択を反映する
+  // （出席番号のみの変更は出席記録に影響しないため対象外）。
+  if (changed && attendanceHandling === "delete") {
+    let query = supabase
+      .from("attendance_records")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("class_id", before.class_id)
+      .gte("date", before.valid_from);
+    if (before.valid_to) {
+      query = query.lte("date", before.valid_to);
+    }
+    const { error: deleteError } = await query;
+    if (deleteError) throw new Error(deleteError.message);
+  }
+
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
+}
+
+// 配属記録を完全に削除する（一度も所属していなかった状態に戻す）。
+// あわせて、その配属期間中に記録された出席情報を残すか削除するかを選べる。
+export async function deleteHomeroomEnrollment(formData: FormData) {
+  await requirePermission("can_manage_students");
+  const supabase = await createClient();
+
+  const enrollmentId = String(formData.get("enrollment_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const attendanceHandling = String(formData.get("attendance_handling") ?? "keep");
+
+  if (!enrollmentId || !studentId) {
+    throw new Error("対象の配属記録が不正です。");
+  }
+
+  const { data: enrollment } = await supabase
+    .from("class_enrollments")
+    .select("class_id, valid_from, valid_to")
+    .eq("id", enrollmentId)
+    .maybeSingle();
+  if (!enrollment) throw new Error("対象の配属記録が見つかりません。");
+
+  const { error } = await supabase
+    .from("class_enrollments")
+    .delete()
+    .eq("id", enrollmentId);
+  if (error) throw new Error(error.message);
+
+  if (attendanceHandling === "delete") {
+    let query = supabase
+      .from("attendance_records")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("class_id", enrollment.class_id)
+      .gte("date", enrollment.valid_from);
+    if (enrollment.valid_to) {
+      query = query.lte("date", enrollment.valid_to);
+    }
+    const { error: deleteError } = await query;
+    if (deleteError) throw new Error(deleteError.message);
+  }
+
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
+}
+
 export async function assignElective(formData: FormData) {
   await requirePermission("can_manage_students");
   const supabase = await createClient();
