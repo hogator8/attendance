@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth";
+import { csvDownloadResponse } from "@/lib/csv";
 
 // 詳細パターン（日次データ）のCSVテンプレート
 export async function GET() {
@@ -10,13 +10,6 @@ export async function GET() {
     "S2020001,2020-04-06,1,〇,,",
     "S2020001,2020-04-06,2,遅,09:15,電車遅延",
   ];
-  const csv = `${header}\n${examples.join("\n")}\n`;
-  const fileName = "詳細パターン_テンプレート.csv";
 
-  return new NextResponse(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
-    },
-  });
+  return csvDownloadResponse([header, ...examples], "詳細パターン_テンプレート.csv");
 }

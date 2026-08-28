@@ -3,19 +3,17 @@ import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import {
-  getClassSummaryData,
-  buildColumnDefs,
-  resolveSelectedColumns,
-  getCellValue,
+  getAllStudentsSummaryData,
+  buildAllStudentsColumnDefs,
+  resolveAllStudentsColumns,
+  getAllStudentsCellValue,
 } from "./data";
 import { colorForRate } from "@/lib/attendance/calc";
 import { inputClass, buttonSecondaryClass, buttonPrimaryClass, tableClass, thClass, tdClass } from "@/lib/ui";
 
-export default async function SummaryPage({
-  params,
+export default async function AllStudentsSummaryPage({
   searchParams,
 }: {
-  params: Promise<{ classId: string }>;
   searchParams: Promise<{
     from?: string;
     to?: string;
@@ -24,7 +22,6 @@ export default async function SummaryPage({
   }>;
 }) {
   const staff = await requireStaff();
-  const { classId } = await params;
   const { from, to, col, cols_submitted } = await searchParams;
   const supabase = await createClient();
 
@@ -32,7 +29,7 @@ export default async function SummaryPage({
   if (!allowed) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
-        このクラスの集計を閲覧する権限がありません。
+        全学生の集計を閲覧する権限がありません。
         <Link href="/summary" className="ml-1 underline">
           集計トップに戻る
         </Link>
@@ -40,19 +37,13 @@ export default async function SummaryPage({
     );
   }
 
-  const data = await getClassSummaryData(supabase, classId, { from, to });
-  if (!data) {
-    return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
-        クラスが見つかりません。
-      </div>
-    );
-  }
-  const { cls, term, rosterList, summaryByStudent, colorRules, decimalDigits, periodFrom, periodTo } = data;
+  const data = await getAllStudentsSummaryData(supabase, { from, to });
+  const { rosterList, summaryByStudent, symbolCountsByStudent, colorRules, decimalDigits, periodFrom, periodTo } =
+    data;
 
-  const columnDefs = buildColumnDefs(data.symbolRows, data.months);
+  const columnDefs = buildAllStudentsColumnDefs(data);
   const selectedColKeys = col ? (Array.isArray(col) ? col : [col]) : undefined;
-  const columns = resolveSelectedColumns(
+  const columns = resolveAllStudentsColumns(
     columnDefs,
     cols_submitted ? selectedColKeys : undefined,
   );
@@ -70,11 +61,10 @@ export default async function SummaryPage({
         <Link href="/summary" className="text-sm text-blue-600 hover:underline">
           ← クラス選択に戻る
         </Link>
-        <h1 className="mt-1 text-xl font-bold text-slate-900">{cls.name} － 集計</h1>
-        <p className="text-xs text-slate-500">学期：{term.name}</p>
+        <h1 className="mt-1 text-xl font-bold text-slate-900">全学生 － 集計</h1>
       </div>
 
-      <form action={`/summary/${classId}`} className="flex flex-col gap-4">
+      <form action="/summary/all" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-600">累計対象期間（開始）</label>
@@ -87,13 +77,10 @@ export default async function SummaryPage({
           <button type="submit" className={buttonSecondaryClass}>
             表示
           </button>
-          <Link href={`/summary/${classId}`} className="text-xs text-slate-400 underline">
-            学期全体にリセット
+          <Link href="/summary/all" className="text-xs text-slate-400 underline">
+            全期間にリセット
           </Link>
-          <Link
-            href={`/summary/${classId}/export?${exportParams.toString()}`}
-            className={buttonPrimaryClass}
-          >
+          <Link href={`/summary/all/export?${exportParams.toString()}`} className={buttonPrimaryClass}>
             Excelダウンロード
           </Link>
         </div>
@@ -131,19 +118,9 @@ export default async function SummaryPage({
           <table className={tableClass}>
             <thead>
               <tr>
-                <th
-                  className={`${thClass} sticky top-0 left-0 z-30 w-28 min-w-28`}
-                >
-                  学籍番号
-                </th>
-                <th
-                  className={`${thClass} sticky top-0 left-28 z-30 w-48 min-w-48`}
-                >
-                  氏名
-                </th>
-                <th
-                  className={`${thClass} sticky top-0 left-[19rem] z-30 w-48 min-w-48`}
-                >
+                <th className={`${thClass} sticky top-0 left-0 z-30 w-28 min-w-28`}>学籍番号</th>
+                <th className={`${thClass} sticky top-0 left-28 z-30 w-48 min-w-48`}>氏名</th>
+                <th className={`${thClass} sticky top-0 left-[19rem] z-30 w-48 min-w-48`}>
                   フリガナ
                 </th>
                 {columns.map((c) => (
@@ -156,6 +133,7 @@ export default async function SummaryPage({
             <tbody>
               {rosterList.map((student) => {
                 const summary = summaryByStudent.get(student.id);
+                const symbolCounts = symbolCountsByStudent.get(student.id);
                 return (
                   <tr key={student.id}>
                     <td className={`${tdClass} sticky left-0 z-10 w-28 min-w-28 bg-white`}>
@@ -169,11 +147,15 @@ export default async function SummaryPage({
                     </td>
                     {columns.map((c) => {
                       const isRateColumn = c.key.endsWith("_rate");
-                      const value = getCellValue(c.key, student, summary, decimalDigits);
+                      const value = getAllStudentsCellValue(
+                        c.key,
+                        student,
+                        summary,
+                        symbolCounts,
+                        decimalDigits,
+                      );
                       let color: string | null = null;
                       if (isRateColumn && summary) {
-                        // 要出席日数が0日の場合は「全欠席で出席率0%」と区別するため、
-                        // 出席率の色分けは適用しない（無色のまま表示する）
                         const stats =
                           c.key === "cum_rate"
                             ? summary.cumulative

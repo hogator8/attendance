@@ -104,6 +104,9 @@ export interface Database {
           status_date: string | null;
           status_note: string | null;
           nationality: string | null;
+          gender: string | null;
+          date_of_birth: string | null;
+          expected_graduation_date: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -118,6 +121,9 @@ export interface Database {
           status_date?: string | null;
           status_note?: string | null;
           nationality?: string | null;
+          gender?: string | null;
+          date_of_birth?: string | null;
+          expected_graduation_date?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -450,8 +456,16 @@ export interface Database {
         ];
       };
       term_settings: {
-        Row: { term_id: string; percent_decimal_digits: number };
-        Insert: { term_id: string; percent_decimal_digits?: number };
+        Row: {
+          term_id: string;
+          percent_decimal_digits: number;
+          credit_hours_per_period: number;
+        };
+        Insert: {
+          term_id: string;
+          percent_decimal_digits?: number;
+          credit_hours_per_period?: number;
+        };
         Update: Partial<
           Database["public"]["Tables"]["term_settings"]["Insert"]
         >;
@@ -464,6 +478,25 @@ export interface Database {
             referencedColumns: ["id"];
           },
         ];
+      };
+      school_settings: {
+        Row: {
+          id: number;
+          school_name: string;
+          school_address: string;
+          school_phone: string;
+          principal_name: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          school_name?: string;
+          school_address?: string;
+          school_phone?: string;
+          principal_name?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["school_settings"]["Insert"]>;
+        Relationships: [];
       };
       holidays: {
         Row: {

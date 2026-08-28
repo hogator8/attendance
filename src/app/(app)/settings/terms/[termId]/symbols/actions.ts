@@ -158,13 +158,19 @@ export async function saveDecimalDigits(formData: FormData) {
   const supabase = await createClient();
   const termId = String(formData.get("term_id") ?? "");
   const digits = Number(formData.get("percent_decimal_digits") ?? 1);
+  const creditHoursPerPeriod = Number(formData.get("credit_hours_per_period") ?? 1);
   if (!termId || ![0, 1, 2].includes(digits)) {
     throw new Error("小数点桁数は0〜2で指定してください。");
   }
+  if (!Number.isFinite(creditHoursPerPeriod) || creditHoursPerPeriod <= 0) {
+    throw new Error("1時限あたりの単位数は0より大きい数値で指定してください。");
+  }
 
-  const { error } = await supabase
-    .from("term_settings")
-    .upsert({ term_id: termId, percent_decimal_digits: digits });
+  const { error } = await supabase.from("term_settings").upsert({
+    term_id: termId,
+    percent_decimal_digits: digits,
+    credit_hours_per_period: creditHoursPerPeriod,
+  });
   if (error) throw new Error(error.message);
 
   revalidatePath(`/settings/terms/${termId}/symbols`);

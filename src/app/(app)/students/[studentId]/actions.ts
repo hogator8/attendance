@@ -16,7 +16,12 @@ export async function updateStudentInfo(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const furigana = String(formData.get("furigana") ?? "").trim();
   const nationality = String(formData.get("nationality") ?? "").trim();
+  const gender = String(formData.get("gender") ?? "").trim();
+  const dateOfBirth = String(formData.get("date_of_birth") ?? "").trim();
   const enrollmentDate = String(formData.get("enrollment_date") ?? "");
+  const expectedGraduationDate = String(
+    formData.get("expected_graduation_date") ?? "",
+  ).trim();
   const photo = formData.get("photo");
 
   if (!studentId || !studentNumber || !name || !furigana || !enrollmentDate) {
@@ -30,7 +35,10 @@ export async function updateStudentInfo(formData: FormData) {
       name,
       furigana,
       nationality: nationality || null,
+      gender: gender || null,
+      date_of_birth: dateOfBirth || null,
       enrollment_date: enrollmentDate,
+      expected_graduation_date: expectedGraduationDate || null,
     })
     .eq("id", studentId);
   if (error) throw new Error(error.message);

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
@@ -51,12 +52,12 @@ export default async function CsvImportPage() {
           <br />
           「学籍番号,年月(YYYY-MM),要出席日数,出席日数,欠席日数,遅刻回数,早退回数,公欠日数,除外日数」の形式のCSVファイルを選択してください。
           <br />
-          <a
+          <Link
             href="/csv-import/templates/monthly"
             className="text-blue-600 underline"
           >
             テンプレートCSVをダウンロード
-          </a>
+          </Link>
         </p>
         {canManageStudents ? (
           <SubmitForm
@@ -84,9 +85,9 @@ export default async function CsvImportPage() {
           <br />
           「学籍番号,日付(YYYY-MM-DD),時限,記号,時刻(任意),理由(任意)」の形式のCSVファイルを選択してください。記号は取り込み先クラスの学期の出席記号設定と一致させてください。
           <br />
-          <a href="/csv-import/templates/daily" className="text-blue-600 underline">
+          <Link href="/csv-import/templates/daily" className="text-blue-600 underline">
             テンプレートCSVをダウンロード
-          </a>
+          </Link>
         </p>
         {inputtableClasses.length === 0 ? (
           <p className="text-sm text-slate-500">

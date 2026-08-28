@@ -153,12 +153,38 @@ export default async function StudentDetailPage({
               />
             </div>
             <div className="flex flex-col gap-1">
+              <label className={labelClass}>性別（任意）</label>
+              <input
+                name="gender"
+                defaultValue={student.gender ?? ""}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>生年月日（任意）</label>
+              <input
+                type="date"
+                name="date_of_birth"
+                defaultValue={student.date_of_birth ?? ""}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
               <label className={labelClass}>入学日</label>
               <input
                 type="date"
                 name="enrollment_date"
                 defaultValue={student.enrollment_date}
                 required
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>卒業予定年月日（任意）</label>
+              <input
+                type="date"
+                name="expected_graduation_date"
+                defaultValue={student.expected_graduation_date ?? ""}
                 className={inputClass}
               />
             </div>

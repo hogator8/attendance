@@ -16,7 +16,12 @@ export async function createStudent(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const furigana = String(formData.get("furigana") ?? "").trim();
   const nationality = String(formData.get("nationality") ?? "").trim();
+  const gender = String(formData.get("gender") ?? "").trim();
+  const dateOfBirth = String(formData.get("date_of_birth") ?? "").trim();
   const enrollmentDate = String(formData.get("enrollment_date") ?? "");
+  const expectedGraduationDate = String(
+    formData.get("expected_graduation_date") ?? "",
+  ).trim();
   const photo = formData.get("photo");
 
   if (!studentNumber || !name || !furigana || !enrollmentDate) {
@@ -30,7 +35,10 @@ export async function createStudent(formData: FormData) {
       name,
       furigana,
       nationality: nationality || null,
+      gender: gender || null,
+      date_of_birth: dateOfBirth || null,
       enrollment_date: enrollmentDate,
+      expected_graduation_date: expectedGraduationDate || null,
     })
     .select()
     .single();
@@ -47,9 +55,10 @@ export async function createStudent(formData: FormData) {
   redirect(`/students/${student.id}`);
 }
 
-// CSV一括登録：1行につき「学籍番号,氏名,フリガナ,国籍,入学日,クラス名」の形式。
-// 国籍・クラス名は任意。クラス名が指定されている場合、アクティブな学期の
-// 同名ホームルームクラスへ入学日を配属開始日として自動配属する。
+// CSV一括登録：1行につき
+// 「学籍番号,氏名,フリガナ,国籍,性別,生年月日,入学日,卒業予定年月日,クラス名」の形式。
+// 国籍・性別・生年月日・卒業予定年月日・クラス名は任意。クラス名が指定されている
+// 場合、アクティブな学期の同名ホームルームクラスへ入学日を配属開始日として自動配属する。
 export async function importStudentsCsv(formData: FormData) {
   await requirePermission("can_manage_students");
   const supabase = await createClient();
@@ -66,32 +75,51 @@ export async function importStudentsCsv(formData: FormData) {
     name: string;
     furigana: string;
     nationality: string | null;
+    gender: string | null;
+    dateOfBirth: string | null;
     enrollmentDate: string;
+    expectedGraduationDate: string | null;
     className: string | null;
   };
   const rows: Row[] = lines.map((line) => {
     const cols = line.split(",").map((s) => s.trim());
-    const [studentNumber, name, furigana, nationality, enrollmentDate, className] = cols;
+    const [
+      studentNumber,
+      name,
+      furigana,
+      nationality,
+      gender,
+      dateOfBirth,
+      enrollmentDate,
+      expectedGraduationDate,
+      className,
+    ] = cols;
     return {
       studentNumber: studentNumber ?? "",
       name: name ?? "",
       furigana: furigana ?? "",
       nationality: nationality || null,
+      gender: gender || null,
+      dateOfBirth: dateOfBirth || null,
       enrollmentDate: enrollmentDate ?? "",
+      expectedGraduationDate: expectedGraduationDate || null,
       className: className || null,
     };
   });
 
+  const dateOk = (v: string | null) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v);
   const invalid = rows.find(
     (r) =>
       !r.studentNumber ||
       !r.name ||
       !r.furigana ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(r.enrollmentDate),
+      !/^\d{4}-\d{2}-\d{2}$/.test(r.enrollmentDate) ||
+      !dateOk(r.dateOfBirth) ||
+      !dateOk(r.expectedGraduationDate),
   );
   if (invalid) {
     throw new Error(
-      "CSVの形式が不正です。各行「学籍番号,氏名,フリガナ,国籍(任意),YYYY-MM-DD,クラス名(任意)」で入力してください。",
+      "CSVの形式が不正です。各行「学籍番号,氏名,フリガナ,国籍(任意),性別(任意),生年月日(任意・YYYY-MM-DD),YYYY-MM-DD,卒業予定年月日(任意・YYYY-MM-DD),クラス名(任意)」で入力してください。",
     );
   }
 
@@ -117,7 +145,10 @@ export async function importStudentsCsv(formData: FormData) {
         name: r.name,
         furigana: r.furigana,
         nationality: r.nationality,
+        gender: r.gender,
+        date_of_birth: r.dateOfBirth,
         enrollment_date: r.enrollmentDate,
+        expected_graduation_date: r.expectedGraduationDate,
       })),
     )
     .select("id, student_number");
