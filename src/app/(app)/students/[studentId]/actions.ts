@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { uploadStudentPhoto } from "@/lib/storage";
-import { addDays } from "@/lib/date";
+import { addDays, todayISO } from "@/lib/date";
 import type { StudentStatus } from "@/lib/supabase/database.types";
 
 export async function updateStudentInfo(formData: FormData) {
@@ -123,11 +123,13 @@ export async function assignHomeroom(formData: FormData) {
     throw new Error("配属終了日は開始日以降にしてください。");
   }
 
+  const today = todayISO();
   const { data: current } = await supabase
     .from("class_enrollments")
     .select("*")
     .eq("student_id", studentId)
-    .is("valid_to", null)
+    .lte("valid_from", today)
+    .or(`valid_to.is.null,valid_to.gte.${today}`)
     .maybeSingle();
 
   if (current && current.class_id === classId) {
