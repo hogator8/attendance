@@ -30,6 +30,8 @@ export default function AttendanceSymbolCell({
   defaultReason: string | null;
 }) {
   const [symbolId, setSymbolId] = useState(defaultSymbolId);
+  const [time, setTime] = useState(defaultTime ?? "");
+  const [reason, setReason] = useState(defaultReason ?? "");
   const selected = symbols.find((s) => s.id === symbolId);
   const showTime =
     selected?.category === "late" || selected?.category === "early_leave";
@@ -42,7 +44,8 @@ export default function AttendanceSymbolCell({
         <input
           type="text"
           name={reasonName}
-          defaultValue={defaultReason ?? ""}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
           placeholder="理由（任意）"
           className={`${inputClass} w-36`}
         />
@@ -51,7 +54,8 @@ export default function AttendanceSymbolCell({
         <input
           type="time"
           name={timeName}
-          defaultValue={defaultTime ?? ""}
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
           className={`${inputClass} w-28`}
         />
       )}
