@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { ClassType } from "@/lib/supabase/database.types";
 
 export async function createClass(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("can_manage_classes");
   const supabase = await createClient();
 
   const termId = String(formData.get("term_id") ?? "");

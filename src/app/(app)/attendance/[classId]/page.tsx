@@ -181,6 +181,28 @@ export default async function AttendanceInputPage({
         teacherName: s.teacher_name,
         isElectiveSlot: s.is_elective_slot,
       }));
+
+    // 単発の時間割変更（振替授業等）：該当日・時限があれば教科・担当者名を上書きする。
+    // 必要出席日数のカウント方法には影響しないため、新しい時限を追加することはしない。
+    if (periods.length > 0) {
+      const { data: overrides } = await supabase
+        .from("schedule_change_overrides")
+        .select("*")
+        .eq("class_id", classId)
+        .eq("date", date);
+      const overrideByPeriod = new Map(
+        (overrides ?? []).map((o) => [o.period_no, o]),
+      );
+      periods = periods.map((p) => {
+        const override = overrideByPeriod.get(p.periodNo);
+        if (!override) return p;
+        return {
+          ...p,
+          subject: override.subject ?? p.subject,
+          teacherName: override.teacher_name ?? p.teacherName,
+        };
+      });
+    }
   }
 
   const roster =

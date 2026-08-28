@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import SubmitForm from "@/components/SubmitForm";
 import { createClass } from "./actions";
@@ -10,7 +10,7 @@ export default async function ClassesPage({
 }: {
   searchParams: Promise<{ term_id?: string }>;
 }) {
-  await requireAdmin();
+  await requirePermission("can_manage_classes");
   const { term_id: termIdParam } = await searchParams;
   const supabase = await createClient();
 
