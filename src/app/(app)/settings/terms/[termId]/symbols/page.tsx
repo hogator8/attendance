@@ -297,22 +297,39 @@ export default async function SymbolsSettingsPage({
       </section>
 
       <section className={`${cardClass} max-w-sm`}>
-        <h2 className="mb-3 font-bold text-slate-900">出席率の小数点桁数</h2>
+        <h2 className="mb-3 font-bold text-slate-900">表示設定</h2>
         <SubmitForm
           action={saveDecimalDigits}
           successMessage="保存しました"
           className="flex flex-col gap-3"
         >
           <input type="hidden" name="term_id" value={termId} />
-          <select
-            name="percent_decimal_digits"
-            defaultValue={termSettings?.percent_decimal_digits ?? 1}
-            className={inputClass}
-          >
-            <option value={0}>0桁（例：85%）</option>
-            <option value={1}>1桁（例：85.3%）</option>
-            <option value={2}>2桁（例：85.34%）</option>
-          </select>
+          <div className="flex flex-col gap-1">
+            <label className={labelClass}>出席率の小数点桁数</label>
+            <select
+              name="percent_decimal_digits"
+              defaultValue={termSettings?.percent_decimal_digits ?? 1}
+              className={inputClass}
+            >
+              <option value={0}>0桁（例：85%）</option>
+              <option value={1}>1桁（例：85.3%）</option>
+              <option value={2}>2桁（例：85.34%）</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className={labelClass}>1時限あたりの単位数</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              name="credit_hours_per_period"
+              defaultValue={termSettings?.credit_hours_per_period ?? 1}
+              className={`${inputClass} w-24`}
+            />
+            <p className="text-xs text-slate-500">
+              集計・証明書発行で時限数を「時間数」に換算する際に使用します（時限数 × 単位数）。
+            </p>
+          </div>
           <div>
             <button type="submit" className={buttonPrimaryClass}>
               保存

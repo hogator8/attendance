@@ -456,8 +456,16 @@ export interface Database {
         ];
       };
       term_settings: {
-        Row: { term_id: string; percent_decimal_digits: number };
-        Insert: { term_id: string; percent_decimal_digits?: number };
+        Row: {
+          term_id: string;
+          percent_decimal_digits: number;
+          credit_hours_per_period: number;
+        };
+        Insert: {
+          term_id: string;
+          percent_decimal_digits?: number;
+          credit_hours_per_period?: number;
+        };
         Update: Partial<
           Database["public"]["Tables"]["term_settings"]["Insert"]
         >;
