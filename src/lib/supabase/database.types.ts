@@ -479,6 +479,25 @@ export interface Database {
           },
         ];
       };
+      school_settings: {
+        Row: {
+          id: number;
+          school_name: string;
+          school_address: string;
+          school_phone: string;
+          principal_name: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          school_name?: string;
+          school_address?: string;
+          school_phone?: string;
+          principal_name?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["school_settings"]["Insert"]>;
+        Relationships: [];
+      };
       holidays: {
         Row: {
           id: string;

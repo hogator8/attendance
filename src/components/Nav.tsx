@@ -92,6 +92,16 @@ function IconStatus() {
     </svg>
   );
 }
+function IconCertificate() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
+      <rect x="3" y="3" width="14" height="14" rx="1.5" />
+      <circle cx="7.5" cy="8" r="1.8" />
+      <path d="M5 14c.5-2 1.3-3 2.5-3s2 1 2.5 3" strokeLinecap="round" />
+      <path d="M12 7.5h3.5M12 10h3.5" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export default function Nav({
   staff,
@@ -109,6 +119,7 @@ export default function Nav({
   ];
   if (permissions.can_view_individual_records) {
     links.push({ href: "/attendance-status", label: "出席状況", icon: <IconStatus /> });
+    links.push({ href: "/certificates", label: "証明書", icon: <IconCertificate /> });
   }
   if (permissions.can_manage_students) {
     links.push({ href: "/students", label: "学生管理", icon: <IconStudents /> });
