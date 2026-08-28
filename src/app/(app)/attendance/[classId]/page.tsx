@@ -47,10 +47,13 @@ export default async function AttendanceInputPage({
   const nextDate = addDays(date, 1);
 
   const dateNav = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">{cls.name}</h1>
-        <p className="text-sm text-slate-500">出席入力 － {formatDateLabel(date)}</p>
+        <p className="text-xs font-medium text-slate-400">出席入力</p>
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{cls.name}</h1>
+        <p className="mt-1 text-lg font-bold text-blue-700 sm:text-xl">
+          {formatDateLabel(date)}
+        </p>
       </div>
       <div className="flex items-center gap-2">
         <Link href={`/attendance/${classId}?date=${prevDate}`} className={buttonSecondaryClass}>
@@ -298,10 +301,10 @@ export default async function AttendanceInputPage({
                               }
                               className={`${inputClass} ml-auto`}
                             >
-                              <option value="">－ 未入力</option>
+                              <option value="">－</option>
                               {(symbols ?? []).map((s) => (
                                 <option key={s.id} value={s.id}>
-                                  {s.symbol_char} {s.label}
+                                  {s.symbol_char}
                                 </option>
                               ))}
                             </select>
@@ -343,10 +346,10 @@ export default async function AttendanceInputPage({
                       defaultValue={evtByKey.get(`${event.id}_${student.id}`) ?? ""}
                       className={`${inputClass} ml-auto`}
                     >
-                      <option value="">－ 未入力</option>
+                      <option value="">－</option>
                       {(symbols ?? []).map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.symbol_char} {s.label}
+                          {s.symbol_char}
                         </option>
                       ))}
                     </select>
@@ -369,6 +372,27 @@ export default async function AttendanceInputPage({
           </div>
         </SubmitForm>
       )}
+
+      {(symbols ?? []).length > 0 && <SymbolLegend symbols={symbols ?? []} />}
+    </div>
+  );
+}
+
+function SymbolLegend({
+  symbols,
+}: {
+  symbols: { id: string; symbol_char: string; label: string }[];
+}) {
+  return (
+    <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+      <p className="mb-1 text-xs font-medium text-slate-500">凡例</p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
+        {symbols.map((s) => (
+          <span key={s.id}>
+            <span className="font-bold text-slate-900">{s.symbol_char}</span>：{s.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -376,7 +400,13 @@ export default async function AttendanceInputPage({
 function StudentBadge({
   student,
 }: {
-  student: { id: string; name: string; furigana: string; photo_url: string | null };
+  student: {
+    id: string;
+    student_number: string;
+    name: string;
+    furigana: string;
+    photo_url: string | null;
+  };
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -395,7 +425,12 @@ function StudentBadge({
         </span>
       )}
       <div>
-        <p className="text-sm font-medium text-slate-900">{student.name}</p>
+        <p className="text-sm font-medium text-slate-900">
+          {student.name}
+          <span className="ml-1 text-xs font-normal text-slate-400">
+            {student.student_number}
+          </span>
+        </p>
         <p className="text-xs text-slate-400">{student.furigana}</p>
       </div>
     </div>
