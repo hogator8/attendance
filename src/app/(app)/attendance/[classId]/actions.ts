@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { canInputClass } from "@/lib/permissions";
@@ -186,5 +185,12 @@ export async function saveAttendance(formData: FormData) {
     if (error) throw new Error(error.message);
   }
 
-  revalidatePath(`/attendance/${classId}`);
+  // この画面はcookies()（認証）に依存するため常に動的レンダリングであり、
+  // fetchキャッシュも使っていない。よってrevalidatePath()はキャッシュ無効化としては
+  // 何もしておらず、唯一の効果はNext.jsのServer Action機構が保存結果のレスポンスに
+  // このルートの再レンダリング結果を自動的に含めてしまうことだった。この自動再描画が
+  // AttendanceSymbolCell（記号選択のプルダウン。保存結果を自前のstateで正しく保持する
+  // 制御コンポーネント）を古いpropsで巻き戻す不具合の原因だったため、あえて呼ばない。
+  // 画面上の反映はAttendanceSymbolCell自身の状態と、行事フォーム側の
+  // remountOnSuccess（router.refresh()による明示的な再取得）だけで完結する。
 }
