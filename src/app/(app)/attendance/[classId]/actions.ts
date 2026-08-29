@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { canInputClass } from "@/lib/permissions";
@@ -131,34 +130,67 @@ export async function saveAttendance(formData: FormData) {
     }
   }
 
+  const upsertPromises: PromiseLike<{ error: { message: string } | null }>[] = [];
+
   if (attUpserts.length > 0) {
-    const { error } = await supabase
-      .from("attendance_records")
-      .upsert(attUpserts, { onConflict: "student_id,date,period_no" });
-    if (error) throw new Error(error.message);
+    upsertPromises.push(
+      supabase
+        .from("attendance_records")
+        .upsert(attUpserts, { onConflict: "student_id,date,period_no" }),
+    );
   }
-  for (const del of attDeletes) {
-    await supabase
-      .from("attendance_records")
-      .delete()
-      .eq("student_id", del.student_id)
-      .eq("date", date)
-      .eq("period_no", del.period_no);
-  }
-
   if (evtUpserts.length > 0) {
-    const { error } = await supabase
-      .from("event_attendance")
-      .upsert(evtUpserts, { onConflict: "event_id,student_id" });
-    if (error) throw new Error(error.message);
-  }
-  for (const del of evtDeletes) {
-    await supabase
-      .from("event_attendance")
-      .delete()
-      .eq("event_id", del.event_id)
-      .eq("student_id", del.student_id);
+    upsertPromises.push(
+      supabase.from("event_attendance").upsert(evtUpserts, { onConflict: "event_id,student_id" }),
+    );
   }
 
-  revalidatePath(`/attendance/${classId}`);
+  // 未入力に戻された分の削除は、学生1人ずつ逐次delete()するのではなく、
+  // period_no（またはevent_id）単位でまとめてIN句によるバッチ削除にする。
+  const attDeletesByPeriod = new Map<number, string[]>();
+  for (const del of attDeletes) {
+    const arr = attDeletesByPeriod.get(del.period_no) ?? [];
+    arr.push(del.student_id);
+    attDeletesByPeriod.set(del.period_no, arr);
+  }
+  for (const [periodNo, studentIdsForPeriod] of attDeletesByPeriod) {
+    upsertPromises.push(
+      supabase
+        .from("attendance_records")
+        .delete()
+        .eq("date", date)
+        .eq("period_no", periodNo)
+        .in("student_id", studentIdsForPeriod),
+    );
+  }
+
+  const evtDeletesByEvent = new Map<string, string[]>();
+  for (const del of evtDeletes) {
+    const arr = evtDeletesByEvent.get(del.event_id) ?? [];
+    arr.push(del.student_id);
+    evtDeletesByEvent.set(del.event_id, arr);
+  }
+  for (const [eventId, studentIdsForEvent] of evtDeletesByEvent) {
+    upsertPromises.push(
+      supabase
+        .from("event_attendance")
+        .delete()
+        .eq("event_id", eventId)
+        .in("student_id", studentIdsForEvent),
+    );
+  }
+
+  const results = await Promise.all(upsertPromises);
+  for (const { error } of results) {
+    if (error) throw new Error(error.message);
+  }
+
+  // この画面はcookies()（認証）に依存するため常に動的レンダリングであり、
+  // fetchキャッシュも使っていない。よってrevalidatePath()はキャッシュ無効化としては
+  // 何もしておらず、唯一の効果はNext.jsのServer Action機構が保存結果のレスポンスに
+  // このルートの再レンダリング結果を自動的に含めてしまうことだった。この自動再描画が
+  // AttendanceSymbolCell（記号選択のプルダウン。保存結果を自前のstateで正しく保持する
+  // 制御コンポーネント）を古いpropsで巻き戻す不具合の原因だったため、あえて呼ばない。
+  // 画面上の反映はAttendanceSymbolCell自身の状態と、行事フォーム側の
+  // remountOnSuccess（router.refresh()による明示的な再取得）だけで完結する。
 }

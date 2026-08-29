@@ -4,7 +4,7 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { canInputClass } from "@/lib/permissions";
-import { getHomeroomRoster, getElectiveRoster, getElectiveOverlapForSlot } from "@/lib/roster";
+import { getHomeroomRoster, getElectiveRoster, getElectiveOverlapForSlots } from "@/lib/roster";
 import { todayISO, dayOfWeekOf, formatDateLabel, addDays } from "@/lib/date";
 import { saveAttendance } from "./actions";
 import BulkFillButton from "./BulkFillButton";
@@ -90,37 +90,92 @@ export default async function AttendanceInputPage({
     );
   }
 
-  const { data: symbols } = await supabase
-    .from("symbols")
-    .select("*")
-    .eq("term_id", cls.term_id)
-    .order("order_no");
-  const defaultSymbol = symbols?.find((s) => s.category === "attendance");
-
   const dayOfWeek = dayOfWeekOf(date);
 
-  const { data: holiday } = await supabase
-    .from("holidays")
-    .select("*")
-    .eq("term_id", cls.term_id)
-    .eq("date", date)
-    .maybeSingle();
-
-  const { data: candidateEvents } = await supabase
-    .from("events")
-    .select("*")
-    .eq("term_id", cls.term_id)
-    .lte("date_from", date)
-    .gte("date_to", date);
+  // 互いに依存しないクエリはPromise.allでまとめて発行し、逐次の往復回数を減らす。
+  // 時間割（timetable_versions→timetable_slots）は2段階の依存関係があるため、
+  // 内部で直列に取得しつつ、全体としては他のクエリと並行して走らせる。
+  const [
+    { data: symbols },
+    { data: holiday },
+    { data: candidateEvents },
+    rawSlots,
+    { data: overrides },
+    roster,
+  ] = await Promise.all([
+    supabase.from("symbols").select("*").eq("term_id", cls.term_id).order("order_no"),
+    supabase
+      .from("holidays")
+      .select("*")
+      .eq("term_id", cls.term_id)
+      .eq("date", date)
+      .maybeSingle(),
+    supabase
+      .from("events")
+      .select("*")
+      .eq("term_id", cls.term_id)
+      .lte("date_from", date)
+      .gte("date_to", date),
+    (async () => {
+      const { data: versions } = await supabase
+        .from("timetable_versions")
+        .select("id")
+        .eq("class_id", classId)
+        .lte("effective_from", date)
+        .or(`effective_to.is.null,effective_to.gte.${date}`);
+      const versionIds = (versions ?? []).map((v) => v.id);
+      if (versionIds.length === 0) return [];
+      const { data: slots } = await supabase
+        .from("timetable_slots")
+        .select("*")
+        .in("timetable_version_id", versionIds)
+        .eq("day_of_week", dayOfWeek)
+        .order("period_no");
+      return slots ?? [];
+    })(),
+    supabase
+      .from("schedule_change_overrides")
+      .select("*")
+      .eq("class_id", classId)
+      .eq("date", date),
+    cls.type === "homeroom"
+      ? getHomeroomRoster(supabase, classId, date)
+      : getElectiveRoster(supabase, classId, date),
+  ]);
+  const defaultSymbol = symbols?.find((s) => s.category === "attendance");
+  const studentIds = roster.map((r) => r.student.id);
 
   const candidateEventIds = (candidateEvents ?? []).map((e) => e.id);
-  const { data: eventClassLinks } =
+
+  // 前段のクエリ結果に依存する2件（対象イベントのクラス紐付け／当日の出席済み記録）
+  // も互いには依存しないため、まとめて並行取得する。
+  const [{ data: eventClassLinks }, { data: existingAttendance }] = await Promise.all([
     candidateEventIds.length > 0
-      ? await supabase
-          .from("event_classes")
-          .select("*")
-          .in("event_id", candidateEventIds)
-      : { data: [] };
+      ? supabase.from("event_classes").select("*").in("event_id", candidateEventIds)
+      : Promise.resolve({ data: [] as { event_id: string; class_id: string }[] }),
+    studentIds.length > 0
+      ? supabase
+          .from("attendance_records")
+          .select("student_id, period_no, symbol_id, time_value, reason")
+          .eq("date", date)
+          .in("student_id", studentIds)
+      : Promise.resolve({
+          data: [] as {
+            student_id: string;
+            period_no: number;
+            symbol_id: string;
+            time_value: string | null;
+            reason: string | null;
+          }[],
+        }),
+  ]);
+  const attByKey = new Map(
+    (existingAttendance ?? []).map((r) => [
+      `${r.student_id}_${r.period_no}`,
+      { symbolId: r.symbol_id, timeValue: r.time_value, reason: r.reason },
+    ]),
+  );
+
   const classIdsByEvent = new Map<string, string[]>();
   for (const link of eventClassLinks ?? []) {
     const arr = classIdsByEvent.get(link.event_id) ?? [];
@@ -146,7 +201,7 @@ export default async function AttendanceInputPage({
 
   const skipNormalPeriods = !!holiday || !!fullReplaceEvent;
 
-  // 時限一覧の取得
+  // 時限一覧の組み立て（クエリは既に上のPromise.allで完了済み、ここはデータ加工のみ）
   type PeriodSlot = {
     periodNo: number;
     periodLabel: string;
@@ -156,100 +211,39 @@ export default async function AttendanceInputPage({
   };
   let periods: PeriodSlot[] = [];
   if (!skipNormalPeriods) {
-    const { data: versions } = await supabase
-      .from("timetable_versions")
-      .select("id")
-      .eq("class_id", classId)
-      .lte("effective_from", date)
-      .or(`effective_to.is.null,effective_to.gte.${date}`);
-    const versionIds = (versions ?? []).map((v) => v.id);
-    const { data: slots } =
-      versionIds.length > 0
-        ? await supabase
-            .from("timetable_slots")
-            .select("*")
-            .in("timetable_version_id", versionIds)
-            .eq("day_of_week", dayOfWeek)
-            .order("period_no")
-        : { data: [] };
-    periods = (slots ?? [])
+    const overrideByPeriod = new Map((overrides ?? []).map((o) => [o.period_no, o]));
+    periods = rawSlots
       .filter((s) => !replacedPeriods.has(s.period_no))
-      .map((s) => ({
-        periodNo: s.period_no,
-        periodLabel: s.period_label,
-        subject: s.subject,
-        teacherName: s.teacher_name,
-        isElectiveSlot: s.is_elective_slot,
-      }));
-
-    // 単発の時間割変更（振替授業等）：該当日・時限があれば教科・担当者名を上書きする。
-    // 必要出席日数のカウント方法には影響しないため、新しい時限を追加することはしない。
-    if (periods.length > 0) {
-      const { data: overrides } = await supabase
-        .from("schedule_change_overrides")
-        .select("*")
-        .eq("class_id", classId)
-        .eq("date", date);
-      const overrideByPeriod = new Map(
-        (overrides ?? []).map((o) => [o.period_no, o]),
-      );
-      periods = periods.map((p) => {
-        const override = overrideByPeriod.get(p.periodNo);
-        if (!override) return p;
+      .map((s) => {
+        const override = overrideByPeriod.get(s.period_no);
         return {
-          ...p,
-          subject: override.subject ?? p.subject,
-          teacherName: override.teacher_name ?? p.teacherName,
+          periodNo: s.period_no,
+          periodLabel: s.period_label,
+          subject: override?.subject ?? s.subject,
+          teacherName: override?.teacher_name ?? s.teacher_name,
+          isElectiveSlot: s.is_elective_slot,
         };
       });
-    }
-  }
-
-  const roster =
-    cls.type === "homeroom"
-      ? await getHomeroomRoster(supabase, classId, date)
-      : await getElectiveRoster(supabase, classId, date);
-  const studentIds = roster.map((r) => r.student.id);
-
-  const { data: existingAttendance } =
-    studentIds.length > 0
-      ? await supabase
-          .from("attendance_records")
-          .select("student_id, period_no, symbol_id, time_value, reason")
-          .eq("date", date)
-          .in("student_id", studentIds)
-      : { data: [] };
-  const attByKey = new Map(
-    (existingAttendance ?? []).map((r) => [
-      `${r.student_id}_${r.period_no}`,
-      { symbolId: r.symbol_id, timeValue: r.time_value, reason: r.reason },
-    ]),
-  );
-
-  const electiveOverlapByPeriod = new Map<
-    number,
-    Map<string, { classId: string; className: string }>
-  >();
-  if (cls.type === "homeroom") {
-    for (const p of periods) {
-      if (p.isElectiveSlot) {
-        electiveOverlapByPeriod.set(
-          p.periodNo,
-          await getElectiveOverlapForSlot(supabase, date, dayOfWeek, p.periodNo),
-        );
-      }
-    }
   }
 
   const eventIds = applicableEvents.map((e) => e.id);
-  const { data: existingEventAttendance } =
+  const electivePeriodNos =
+    cls.type === "homeroom"
+      ? periods.filter((p) => p.isElectiveSlot).map((p) => p.periodNo)
+      : [];
+
+  const [electiveOverlapByPeriod, { data: existingEventAttendance }] = await Promise.all([
+    cls.type === "homeroom"
+      ? getElectiveOverlapForSlots(supabase, date, dayOfWeek, electivePeriodNos)
+      : Promise.resolve(new Map<number, Map<string, { classId: string; className: string }>>()),
     eventIds.length > 0 && studentIds.length > 0
-      ? await supabase
+      ? supabase
           .from("event_attendance")
           .select("event_id, student_id, symbol_id")
           .in("event_id", eventIds)
           .in("student_id", studentIds)
-      : { data: [] };
+      : Promise.resolve({ data: [] as { event_id: string; student_id: string; symbol_id: string }[] }),
+  ]);
   const evtByKey = new Map(
     (existingEventAttendance ?? []).map((r) => [
       `${r.event_id}_${r.student_id}`,
@@ -457,7 +451,6 @@ function StudentBadge({
           alt={student.name}
           width={32}
           height={32}
-          unoptimized
           className="h-8 w-8 rounded-full object-cover"
         />
       ) : (
