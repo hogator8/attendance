@@ -138,7 +138,7 @@ export default function Nav({
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <Link href="/home" className="text-base font-bold text-slate-900">
+          <Link href="/home" prefetch={false} className="text-base font-bold text-slate-900">
             出席管理システム
           </Link>
           <nav className="flex flex-wrap gap-1.5 text-sm">
@@ -146,6 +146,7 @@ export default function Nav({
               <Link
                 key={link.href}
                 href={link.href}
+                prefetch={false}
                 className="flex w-32 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
               >
                 {link.icon}
