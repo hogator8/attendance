@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "./database.types";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/test-cache-repro"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some(
@@ -43,6 +43,13 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+
+  // TEST-ONLY: 本番のSupabaseセッションリフレッシュ（毎リクエストでCookieを
+  // 再設定する挙動）を、ダミー認証情報のこのサンドボックスでも再現するため、
+  // /test-cache-repro へのリクエストでは常にCookieを更新する。
+  if (pathname.startsWith("/test-cache-repro")) {
+    supabaseResponse.cookies.set("sb-fake-session", String(Date.now()));
+  }
 
   if (!user && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
