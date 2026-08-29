@@ -131,7 +131,6 @@ export default async function StudentsPage({
                       alt={s.name}
                       width={32}
                       height={32}
-                      unoptimized
                       className="h-8 w-8 rounded-full object-cover"
                     />
                   ) : (
