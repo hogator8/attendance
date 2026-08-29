@@ -273,7 +273,6 @@ export default async function AttendanceInputPage({
                   key={p.periodNo}
                   action={saveAttendance}
                   successMessage={`${p.periodLabel}の出席を保存しました`}
-                  remountOnSuccess={false}
                 >
                   <section className={cardClass}>
                     <input type="hidden" name="class_id" value={classId} />
