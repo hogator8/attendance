@@ -67,10 +67,13 @@ export async function importStudentsCsv(formData: FormData) {
 
   const csv = await readCsvFile(formData);
 
+  // 1行目はヘッダー行（テンプレートCSVをそのままアップロードした場合、
+  // ヘッダー行の文字列自体がデータ行として誤ってパースされないようにする）。
   const lines = csv
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+    .filter((line) => line.length > 0)
+    .slice(1);
 
   type Row = {
     studentNumber: string;
