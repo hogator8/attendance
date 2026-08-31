@@ -60,15 +60,58 @@ export async function saveSymbols(formData: FormData) {
     throw new Error("記号が重複しています。記号は一意にしてください。");
   }
 
-  // 既存の記号を全削除してから作り直す（10枠固定のシンプルな運用に合わせる）
-  const { error: deleteError } = await supabase
+  // symbols は attendance_records / event_attendance から symbol_id で
+  // 参照される（ON DELETE RESTRICT）ため、既に出席記録で使われている記号を
+  // 一度削除して作り直すと外部キー制約違反になる。そのため、フォームで
+  // 空欄にされた枠（＝もう使わない枠）だけを削除し、それ以外は行を
+  // 作り直さずUPDATEする（IDを維持し、既存の出席記録からの参照を壊さない）。
+  const { data: existingSymbols, error: fetchError } = await supabase
     .from("symbols")
-    .delete()
+    .select("order_no")
     .eq("term_id", termId);
-  if (deleteError) throw new Error(deleteError.message);
+  if (fetchError) {
+    console.error("saveSymbols: 既存記号の取得に失敗しました", fetchError);
+    throw new Error(fetchError.message);
+  }
 
-  const { error: insertError } = await supabase.from("symbols").insert(rows);
-  if (insertError) throw new Error(insertError.message);
+  const keptOrderNos = new Set(rows.map((r) => r.order_no));
+  const orderNosToDelete = (existingSymbols ?? [])
+    .map((s) => s.order_no)
+    .filter((n) => !keptOrderNos.has(n));
+
+  if (orderNosToDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("symbols")
+      .delete()
+      .eq("term_id", termId)
+      .in("order_no", orderNosToDelete);
+    if (deleteError) {
+      console.error("saveSymbols: 記号の削除に失敗しました", deleteError);
+      if (deleteError.code === "23503") {
+        throw new Error(
+          "既に出席記録で使用されている記号は削除できません。削除する代わりに内容を編集してご利用いただくか、該当の出席記録を修正してから改めて削除してください。",
+        );
+      }
+      throw new Error(deleteError.message);
+    }
+  }
+
+  // (term_id, symbol_char) のUNIQUE制約はDEFERRABLE INITIALLY DEFERREDに
+  // なっているため、2つの記号の文字を入れ替えるような保存でも、この1回の
+  // upsertの中で一時的に重複しても最終的に重複していなければエラーになら
+  // ない。
+  const { error: upsertError } = await supabase
+    .from("symbols")
+    .upsert(rows, { onConflict: "term_id,order_no" });
+  if (upsertError) {
+    console.error("saveSymbols: 記号の保存に失敗しました", upsertError);
+    if (upsertError.code === "23505") {
+      throw new Error(
+        "記号が重複しています。他の記号と同じ文字を使わないようにしてください。",
+      );
+    }
+    throw new Error(upsertError.message);
+  }
 
   revalidatePath(`/settings/terms/${termId}/symbols`);
 }
@@ -97,7 +140,10 @@ export async function saveConversionRule(formData: FormData) {
   const { error } = await supabase
     .from("conversion_rules")
     .upsert({ term_id: termId, late_n: lateN, early_n: earlyN, combined_n: combinedN });
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("saveConversionRule: 換算ルールの保存に失敗しました", error);
+    throw new Error(error.message);
+  }
 
   revalidatePath(`/settings/terms/${termId}/symbols`);
 }
@@ -143,11 +189,17 @@ export async function saveColorRules(formData: FormData) {
     .from("color_rules")
     .delete()
     .eq("term_id", termId);
-  if (deleteError) throw new Error(deleteError.message);
+  if (deleteError) {
+    console.error("saveColorRules: 色分けルールの削除に失敗しました", deleteError);
+    throw new Error(deleteError.message);
+  }
 
   if (rows.length > 0) {
     const { error: insertError } = await supabase.from("color_rules").insert(rows);
-    if (insertError) throw new Error(insertError.message);
+    if (insertError) {
+      console.error("saveColorRules: 色分けルールの保存に失敗しました", insertError);
+      throw new Error(insertError.message);
+    }
   }
 
   revalidatePath(`/settings/terms/${termId}/symbols`);
@@ -171,7 +223,10 @@ export async function saveDecimalDigits(formData: FormData) {
     percent_decimal_digits: digits,
     credit_hours_per_period: creditHoursPerPeriod,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("saveDecimalDigits: 表示設定の保存に失敗しました", error);
+    throw new Error(error.message);
+  }
 
   revalidatePath(`/settings/terms/${termId}/symbols`);
 }
