@@ -92,6 +92,15 @@ function IconStatus() {
     </svg>
   );
 }
+function IconDanger() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
+      <path d="M10 3 2.5 16h15L10 3Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 8.5v3.5" strokeLinecap="round" />
+      <circle cx="10" cy="14" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 function IconCertificate() {
   return (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
@@ -132,6 +141,9 @@ export default function Nav({
   }
   if (permissions.can_manage_settings) {
     links.push({ href: "/settings", label: "設定", icon: <IconSettings /> });
+  }
+  if (staff.role === "admin") {
+    links.push({ href: "/settings/danger-zone", label: "データ初期化", icon: <IconDanger /> });
   }
 
   return (
