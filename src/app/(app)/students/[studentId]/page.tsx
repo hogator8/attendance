@@ -16,6 +16,8 @@ import {
   deleteHomeroomEnrollment,
   assignElective,
   endElective,
+  editElective,
+  deleteElective,
 } from "./actions";
 import {
   cardClass,
@@ -42,6 +44,11 @@ export default async function StudentDetailPage({
     .eq("id", studentId)
     .maybeSingle();
   if (!student) notFound();
+
+  const { data: categories } = await supabase
+    .from("student_categories")
+    .select("*")
+    .order("order_no");
 
   const activeTerms = await getActiveTerms(supabase);
   const activeTermIds = activeTerms.map((t) => t.id);
@@ -189,6 +196,33 @@ export default async function StudentDetailPage({
                 className={inputClass}
               />
             </div>
+            {(categories ?? []).length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className={labelClass}>学生区分（任意）</label>
+                <div className="flex flex-wrap gap-3">
+                  <label className="inline-flex items-center gap-1 text-sm">
+                    <input
+                      type="radio"
+                      name="category_id"
+                      value=""
+                      defaultChecked={!student.category_id}
+                    />
+                    未設定
+                  </label>
+                  {(categories ?? []).map((c) => (
+                    <label key={c.id} className="inline-flex items-center gap-1 text-sm">
+                      <input
+                        type="radio"
+                        name="category_id"
+                        value={c.id}
+                        defaultChecked={student.category_id === c.id}
+                      />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className={labelClass}>写真を変更</label>
               <FileInputButton name="photo" accept="image/*" />
@@ -555,6 +589,140 @@ export default async function StudentDetailPage({
             アクティブな学期がないため、選択科目の割当はできません。
           </p>
         )}
+
+        <div className="mt-4 flex flex-col gap-2">
+          {(electiveMemberships ?? []).length === 0 && (
+            <p className="text-sm text-slate-500">選択科目の所属履歴がありません。</p>
+          )}
+          {(electiveMemberships ?? []).map((m) => {
+            const classOptions =
+              m.class_id && !(electiveClasses ?? []).some((c) => c.id === m.class_id)
+                ? [
+                    ...(electiveClasses ?? []),
+                    { id: m.class_id, name: m.class?.name ?? "(不明なクラス)" },
+                  ]
+                : (electiveClasses ?? []);
+            return (
+              <div key={m.id} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    {m.class?.name}　{m.valid_from} 〜 {m.valid_to ?? "現在"}
+                  </span>
+                  <div className="flex gap-3 text-xs">
+                    <details>
+                      <summary className="cursor-pointer text-blue-600 hover:underline">
+                        変更
+                      </summary>
+                      <SubmitForm
+                        action={editElective}
+                        successMessage="選択科目の所属記録を変更しました"
+                        className="mt-2 flex w-72 flex-col gap-2 rounded-md border border-slate-200 bg-slate-50 p-3"
+                      >
+                        <input type="hidden" name="membership_id" value={m.id} />
+                        <input type="hidden" name="student_id" value={student.id} />
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>選択科目</label>
+                          <select
+                            name="class_id"
+                            defaultValue={m.class_id}
+                            required
+                            className={inputClass}
+                          >
+                            {classOptions.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>開始日</label>
+                          <input
+                            type="date"
+                            name="valid_from"
+                            defaultValue={m.valid_from}
+                            required
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>終了日（任意）</label>
+                          <input
+                            type="date"
+                            name="valid_to"
+                            defaultValue={m.valid_to ?? ""}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>
+                            選択科目・期間を変更する場合、記録済みの出席情報の扱い
+                          </label>
+                          <label className="inline-flex items-center gap-1">
+                            <input
+                              type="radio"
+                              name="attendance_handling"
+                              value="keep"
+                              defaultChecked
+                            />
+                            残す
+                          </label>
+                          <label className="inline-flex items-center gap-1">
+                            <input type="radio" name="attendance_handling" value="delete" />
+                            変更前の内容に基づく出席情報を削除する
+                          </label>
+                        </div>
+                        <div>
+                          <button type="submit" className={buttonPrimaryClass}>
+                            変更を保存
+                          </button>
+                        </div>
+                      </SubmitForm>
+                    </details>
+                    <details>
+                      <summary className="cursor-pointer text-red-600 hover:underline">
+                        削除
+                      </summary>
+                      <SubmitForm
+                        action={deleteElective}
+                        successMessage="選択科目の所属記録を削除しました"
+                        className="mt-2 flex w-72 flex-col gap-2 rounded-md border border-red-200 bg-red-50 p-3"
+                      >
+                        <input type="hidden" name="membership_id" value={m.id} />
+                        <input type="hidden" name="student_id" value={student.id} />
+                        <p className="text-xs text-red-700">
+                          この選択科目の所属記録（{m.class?.name}／{m.valid_from}〜
+                          {m.valid_to ?? "現在"}）を完全に削除します。元に戻せません。
+                        </p>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>記録済みの出席情報の扱い</label>
+                          <label className="inline-flex items-center gap-1">
+                            <input
+                              type="radio"
+                              name="attendance_handling"
+                              value="keep"
+                              defaultChecked
+                            />
+                            残す
+                          </label>
+                          <label className="inline-flex items-center gap-1">
+                            <input type="radio" name="attendance_handling" value="delete" />
+                            この所属期間の出席情報も削除する
+                          </label>
+                        </div>
+                        <div>
+                          <button type="submit" className={buttonDangerClass}>
+                            削除する
+                          </button>
+                        </div>
+                      </SubmitForm>
+                    </details>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </section>
     </div>
   );

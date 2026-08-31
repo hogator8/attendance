@@ -19,6 +19,7 @@ export interface RosterStudent {
   name: string;
   furigana: string;
   nationality: string | null;
+  categoryName: string | null;
 }
 
 export interface AllStudentsSummaryData {
@@ -72,10 +73,17 @@ export async function getAllStudentsSummaryData(
 ): Promise<AllStudentsSummaryData> {
   const { data: studentsRaw } = await supabase
     .from("students")
-    .select("id, student_number, name, furigana, nationality")
+    .select("id, student_number, name, furigana, nationality, category:student_categories(name)")
     .neq("status", "withdrawn")
     .order("student_number");
-  const rosterList: RosterStudent[] = studentsRaw ?? [];
+  const rosterList: RosterStudent[] = (studentsRaw ?? []).map((s) => ({
+    id: s.id,
+    student_number: s.student_number,
+    name: s.name,
+    furigana: s.furigana,
+    nationality: s.nationality,
+    categoryName: s.category?.name ?? null,
+  }));
   const studentIds = rosterList.map((s) => s.id);
 
   const activeTerms = await getActiveTerms(supabase);
@@ -263,6 +271,7 @@ export interface ColumnDef {
 export function buildAllStudentsColumnDefs(data: AllStudentsSummaryData): ColumnDef[] {
   const cols: ColumnDef[] = [
     { key: "nationality", label: "国籍", defaultOn: false },
+    { key: "student_category", label: "学生区分", defaultOn: false },
     { key: "cum_req_days", label: "累計要出席時数", defaultOn: false },
     { key: "cum_rate", label: "累計出席率", defaultOn: true },
     { key: "cum_raw_abs", label: "累計欠席時数", defaultOn: false },
@@ -309,6 +318,7 @@ export function getAllStudentsCellValue(
   decimalDigits: number,
 ): string {
   if (key === "nationality") return student.nationality ?? "";
+  if (key === "student_category") return student.categoryName ?? "";
   if (!summary) return "";
   if (key === "cum_req_days") return String(summary.cumulative.reqDays);
   if (key === "cum_rate") return formatPercent(summary.cumulative.rate, decimalDigits);

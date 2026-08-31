@@ -23,6 +23,7 @@ const PERMISSION_FIELDS: { name: string; label: string }[] = [
   { name: "can_manage_staff", label: "教員管理" },
   { name: "can_manage_settings", label: "各種設定管理" },
   { name: "can_view_individual_records", label: "個別学生の出席状況閲覧" },
+  { name: "can_view_attendance_logs", label: "出席入力ログ閲覧" },
 ];
 
 export default async function StaffDetailPage({

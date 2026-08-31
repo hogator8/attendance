@@ -15,6 +15,18 @@ export type SymbolCategory =
 export type EventReplaceMode = "all" | "partial" | "none";
 export type StaffRole = "admin" | "full_time" | "part_time";
 
+// attendance_input_logs.entries（jsonb）の1学生分のスナップショット
+export interface AttendanceInputLogEntry {
+  student_id: string;
+  student_number: string;
+  student_name: string;
+  symbol_id: string | null;
+  symbol_char: string | null;
+  symbol_label: string | null;
+  time_value: string | null;
+  reason: string | null;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -69,6 +81,7 @@ export interface Database {
           can_manage_staff: boolean;
           can_manage_settings: boolean;
           can_view_individual_records: boolean;
+          can_view_attendance_logs: boolean;
         };
         Insert: {
           staff_id: string;
@@ -78,6 +91,7 @@ export interface Database {
           can_manage_staff?: boolean;
           can_manage_settings?: boolean;
           can_view_individual_records?: boolean;
+          can_view_attendance_logs?: boolean;
         };
         Update: Partial<
           Database["public"]["Tables"]["staff_permissions"]["Insert"]
@@ -107,6 +121,7 @@ export interface Database {
           gender: string | null;
           date_of_birth: string | null;
           expected_graduation_date: string | null;
+          category_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -124,11 +139,20 @@ export interface Database {
           gender?: string | null;
           date_of_birth?: string | null;
           expected_graduation_date?: string | null;
+          category_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["students"]["Insert"]>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "students_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "student_categories";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       classes: {
         Row: {
@@ -500,6 +524,24 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["school_settings"]["Insert"]>;
         Relationships: [];
       };
+      student_categories: {
+        Row: {
+          id: string;
+          order_no: number;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_no: number;
+          name: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["student_categories"]["Insert"]
+        >;
+        Relationships: [];
+      };
       holidays: {
         Row: {
           id: string;
@@ -632,6 +674,49 @@ export interface Database {
             columns: ["recorded_by"];
             isOneToOne: false;
             referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      attendance_input_logs: {
+        Row: {
+          id: string;
+          staff_id: string;
+          staff_name: string;
+          class_id: string;
+          class_name: string;
+          date: string;
+          period_no: number;
+          recorded_at: string;
+          entries: AttendanceInputLogEntry[];
+        };
+        Insert: {
+          id?: string;
+          staff_id: string;
+          staff_name: string;
+          class_id: string;
+          class_name: string;
+          date: string;
+          period_no: number;
+          recorded_at?: string;
+          entries: AttendanceInputLogEntry[];
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["attendance_input_logs"]["Insert"]
+        >;
+        Relationships: [
+          {
+            foreignKeyName: "attendance_input_logs_staff_id_fkey";
+            columns: ["staff_id"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attendance_input_logs_class_id_fkey";
+            columns: ["class_id"];
+            isOneToOne: false;
+            referencedRelation: "classes";
             referencedColumns: ["id"];
           },
         ];

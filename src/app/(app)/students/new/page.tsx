@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import SubmitForm from "@/components/SubmitForm";
 import FileInputButton from "@/components/FileInputButton";
 import { createStudent, importStudentsCsv } from "./actions";
@@ -7,6 +8,12 @@ import { cardClass, inputClass, labelClass, buttonPrimaryClass } from "@/lib/ui"
 
 export default async function NewStudentPage() {
   await requirePermission("can_manage_students");
+  const supabase = await createClient();
+
+  const { data: categories } = await supabase
+    .from("student_categories")
+    .select("*")
+    .order("order_no");
 
   return (
     <div className="flex flex-col gap-6">
@@ -60,6 +67,23 @@ export default async function NewStudentPage() {
           <label className={labelClass}>卒業予定年月日（任意）</label>
           <input type="date" name="expected_graduation_date" className={inputClass} />
         </div>
+        {(categories ?? []).length > 0 && (
+          <div className="flex flex-col gap-1">
+            <label className={labelClass}>学生区分（任意）</label>
+            <div className="flex flex-wrap gap-3">
+              <label className="inline-flex items-center gap-1 text-sm">
+                <input type="radio" name="category_id" value="" defaultChecked />
+                未設定
+              </label>
+              {(categories ?? []).map((c) => (
+                <label key={c.id} className="inline-flex items-center gap-1 text-sm">
+                  <input type="radio" name="category_id" value={c.id} />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex flex-col gap-1">
           <label className={labelClass}>写真（任意）</label>
           <FileInputButton name="photo" accept="image/*" />

@@ -16,6 +16,7 @@ const FULL_PERMISSIONS: StaffPermissions = {
   can_manage_staff: true,
   can_manage_settings: true,
   can_view_individual_records: true,
+  can_view_attendance_logs: true,
 };
 
 const NO_PERMISSIONS: StaffPermissions = {
@@ -25,6 +26,7 @@ const NO_PERMISSIONS: StaffPermissions = {
   can_manage_staff: false,
   can_manage_settings: false,
   can_view_individual_records: false,
+  can_view_attendance_logs: false,
 };
 
 export default async function AppLayout({

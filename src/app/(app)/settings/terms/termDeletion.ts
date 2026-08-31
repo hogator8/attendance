@@ -17,10 +17,13 @@ async function countIf<T extends { count: number | null }>(
 // に加え、classes.id/events.id経由でのみ存在しうるテーブル
 // （class_enrollments/elective_memberships/attendance_records/
 // schedule_change_overrides/timetable_versions/timetable_slots/
-// event_attendance）についても、間接的な保証に頼らずすべて直接クエリで
-// 件数を確認する。historical_monthly_summariesはstudent_id・year_monthのみで
-// 構成され、terms.id等への外部キーを一切持たないため対象外
-// （学期をまたいで独立して保持される過去データのため）。
+// event_attendance/attendance_input_logs）についても、間接的な保証に頼らず
+// すべて直接クエリで件数を確認する。attendance_input_logsのclass_idは
+// on delete restrictのため、ログが残っている学期のクラスを含む学期削除は
+// そのままではFK違反になる（放置すると原因不明のエラーになるため、他の
+// テーブルと同様に事前チェックの対象に含める）。historical_monthly_summaries
+// はstudent_id・year_monthのみで構成され、terms.id等への外部キーを一切
+// 持たないため対象外（学期をまたいで独立して保持される過去データのため）。
 //
 // symbols・conversion_rules・color_rules・term_settings（学期ごとの設定値）は
 // 「実データ」とはみなさず、判定対象に含めない。削除許可時はterms行の
@@ -49,6 +52,7 @@ export async function termHasBlockingData(supabase: Client, termId: string): Pro
     overrideCount,
     slotCount,
     eventAttendanceCount,
+    inputLogCount,
   ] = await Promise.all([
     countIf(hasClasses, () =>
       supabase
@@ -86,6 +90,12 @@ export async function termHasBlockingData(supabase: Client, termId: string): Pro
         .select("id", { count: "exact", head: true })
         .in("event_id", eventIds),
     ),
+    countIf(hasClasses, () =>
+      supabase
+        .from("attendance_input_logs")
+        .select("id", { count: "exact", head: true })
+        .in("class_id", classIds),
+    ),
   ]);
 
   return (
@@ -98,7 +108,8 @@ export async function termHasBlockingData(supabase: Client, termId: string): Pro
     overrideCount > 0 ||
     hasTimetableVersions ||
     slotCount > 0 ||
-    eventAttendanceCount > 0
+    eventAttendanceCount > 0 ||
+    inputLogCount > 0
   );
 }
 

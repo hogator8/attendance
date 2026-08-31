@@ -41,6 +41,16 @@ export async function resetAllData(formData: FormData) {
   }
 
   // 2. on delete restrict制約を持つ出席データを先に削除する
+  //   （attendance_input_logsもstaff_id/class_idの両方がon delete restrictの
+  //   ため、教員・学期の削除より先に空にしておく必要がある）
+  const { error: attendanceInputLogsError } = await admin
+    .from("attendance_input_logs")
+    .delete()
+    .not("id", "is", null);
+  if (attendanceInputLogsError) {
+    throw new Error(`出席入力ログの削除に失敗しました: ${attendanceInputLogsError.message}`);
+  }
+
   const { error: eventAttendanceError } = await admin
     .from("event_attendance")
     .delete()
@@ -82,6 +92,18 @@ export async function resetAllData(formData: FormData) {
     .not("id", "is", null);
   if (schoolSettingsError) {
     throw new Error(`学校設定の削除に失敗しました: ${schoolSettingsError.message}`);
+  }
+
+  // 5.5. 学生区分設定（student_categories）を削除する。school_settingsと同様、
+  //   学期に依存しないグローバルなデータかつテストデータになり得るため対象に含める。
+  //   students.category_idは既にstudents削除（手順4）で消えているため
+  //   外部キー違反にはならない。
+  const { error: studentCategoriesError } = await admin
+    .from("student_categories")
+    .delete()
+    .not("id", "is", null);
+  if (studentCategoriesError) {
+    throw new Error(`学生区分設定の削除に失敗しました: ${studentCategoriesError.message}`);
   }
 
   // 6. admin以外のstaffをSupabase Authアカウントごと削除する。

@@ -22,6 +22,7 @@ export async function updateStudentInfo(formData: FormData) {
   const expectedGraduationDate = String(
     formData.get("expected_graduation_date") ?? "",
   ).trim();
+  const categoryId = String(formData.get("category_id") ?? "").trim();
   const photo = formData.get("photo");
 
   if (!studentId || !studentNumber || !name || !furigana || !enrollmentDate) {
@@ -39,6 +40,7 @@ export async function updateStudentInfo(formData: FormData) {
       date_of_birth: dateOfBirth || null,
       enrollment_date: enrollmentDate,
       expected_graduation_date: expectedGraduationDate || null,
+      category_id: categoryId || null,
     })
     .eq("id", studentId);
   if (error) throw new Error(error.message);
@@ -360,6 +362,115 @@ export async function endElective(formData: FormData) {
     .update({ valid_to: validTo })
     .eq("id", membershipId);
   if (error) throw new Error(error.message);
+
+  revalidatePath(`/students/${studentId}`);
+}
+
+// 選択科目の所属記録（クラス・期間）を直接訂正する。editHomeroomEnrollment と
+// 同様、クラスまたは期間を変更する場合は、変更前の内容に基づいて記録されて
+// いた出席情報を残すか削除するかを選べる。
+export async function editElective(formData: FormData) {
+  await requirePermission("can_manage_students");
+  const supabase = await createClient();
+
+  const membershipId = String(formData.get("membership_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const classId = String(formData.get("class_id") ?? "");
+  const validFrom = String(formData.get("valid_from") ?? "");
+  const validTo = String(formData.get("valid_to") ?? "").trim();
+  const attendanceHandling = String(formData.get("attendance_handling") ?? "keep");
+
+  if (!membershipId || !studentId || !classId || !validFrom) {
+    throw new Error("選択科目・開始日を入力してください。");
+  }
+  if (validTo && validTo < validFrom) {
+    throw new Error("終了日は開始日以降にしてください。");
+  }
+
+  const { data: before } = await supabase
+    .from("elective_memberships")
+    .select("class_id, valid_from, valid_to")
+    .eq("id", membershipId)
+    .maybeSingle();
+  if (!before) throw new Error("対象の選択科目記録が見つかりません。");
+
+  const changed =
+    before.class_id !== classId ||
+    before.valid_from !== validFrom ||
+    (before.valid_to ?? "") !== (validTo || "");
+
+  const { error } = await supabase
+    .from("elective_memberships")
+    .update({
+      class_id: classId,
+      valid_from: validFrom,
+      valid_to: validTo || null,
+    })
+    .eq("id", membershipId);
+  if (error) {
+    if (error.code === "23P01") {
+      throw new Error("指定した期間が、同じ学生の同じ選択科目の別の所属記録と重なっています。");
+    }
+    throw new Error(error.message);
+  }
+
+  if (changed && attendanceHandling === "delete") {
+    let query = supabase
+      .from("attendance_records")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("class_id", before.class_id)
+      .gte("date", before.valid_from);
+    if (before.valid_to) {
+      query = query.lte("date", before.valid_to);
+    }
+    const { error: deleteError } = await query;
+    if (deleteError) throw new Error(deleteError.message);
+  }
+
+  revalidatePath(`/students/${studentId}`);
+}
+
+// 選択科目の所属記録を完全に削除する。あわせて、その所属期間中に記録された
+// 出席情報を残すか削除するかを選べる。
+export async function deleteElective(formData: FormData) {
+  await requirePermission("can_manage_students");
+  const supabase = await createClient();
+
+  const membershipId = String(formData.get("membership_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const attendanceHandling = String(formData.get("attendance_handling") ?? "keep");
+
+  if (!membershipId || !studentId) {
+    throw new Error("対象の選択科目記録が不正です。");
+  }
+
+  const { data: membership } = await supabase
+    .from("elective_memberships")
+    .select("class_id, valid_from, valid_to")
+    .eq("id", membershipId)
+    .maybeSingle();
+  if (!membership) throw new Error("対象の選択科目記録が見つかりません。");
+
+  const { error } = await supabase
+    .from("elective_memberships")
+    .delete()
+    .eq("id", membershipId);
+  if (error) throw new Error(error.message);
+
+  if (attendanceHandling === "delete") {
+    let query = supabase
+      .from("attendance_records")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("class_id", membership.class_id)
+      .gte("date", membership.valid_from);
+    if (membership.valid_to) {
+      query = query.lte("date", membership.valid_to);
+    }
+    const { error: deleteError } = await query;
+    if (deleteError) throw new Error(deleteError.message);
+  }
 
   revalidatePath(`/students/${studentId}`);
 }
