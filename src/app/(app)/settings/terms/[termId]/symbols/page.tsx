@@ -23,7 +23,7 @@ const CATEGORY_OPTIONS: { value: SymbolCategory; label: string }[] = [
   { value: "late", label: "遅刻" },
   { value: "early_leave", label: "早退" },
   { value: "excused", label: "公欠" },
-  { value: "excluded", label: "除外（要出席日数に含めない）" },
+  { value: "excluded", label: "除外（要出席時数に含めない）" },
 ];
 
 export default async function SymbolsSettingsPage({

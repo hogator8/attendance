@@ -185,7 +185,7 @@ function EventForm({
         </div>
         <div className="flex gap-3">
           <div className="flex flex-1 flex-col gap-1">
-            <label className={labelClass}>単位時数（要出席・出席日数への換算値）</label>
+            <label className={labelClass}>単位時数（要出席・出席時数への換算値）</label>
             <input
               type="number"
               step="0.5"

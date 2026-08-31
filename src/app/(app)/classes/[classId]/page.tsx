@@ -264,7 +264,7 @@ export default async function ClassDetailPage({
         </h2>
         <p className="mb-3 text-xs text-slate-500">
           特定の日・時限だけ、通常の時間割とは異なる教科・担当者で出席入力画面に表示します。
-          必要出席日数の数え方には影響しません。
+          必要出席時数の数え方には影響しません。
         </p>
 
         {(scheduleOverrides ?? []).length > 0 && (

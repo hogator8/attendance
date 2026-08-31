@@ -249,14 +249,14 @@ export function buildColumnDefs(
 ): ColumnDef[] {
   const cols: ColumnDef[] = [
     { key: "nationality", label: "国籍", defaultOn: false },
-    { key: "cum_req_days", label: "累計要出席日数", defaultOn: false },
+    { key: "cum_req_days", label: "累計要出席時数", defaultOn: false },
     { key: "cum_rate", label: "累計出席率", defaultOn: true },
-    { key: "cum_raw_abs", label: "累計欠席日数", defaultOn: false },
+    { key: "cum_raw_abs", label: "累計欠席時数", defaultOn: false },
     { key: "cum_late", label: "累計遅刻回数", defaultOn: false },
     { key: "cum_early", label: "累計早退回数", defaultOn: false },
-    { key: "cum_converted_abs", label: "累計換算欠席日数", defaultOn: false },
-    { key: "cum_total_abs", label: "累計合計欠席日数", defaultOn: false },
-    { key: "cum_excused", label: "累計公欠日数", defaultOn: false },
+    { key: "cum_converted_abs", label: "累計換算欠席時数", defaultOn: false },
+    { key: "cum_total_abs", label: "累計合計欠席時数", defaultOn: false },
+    { key: "cum_excused", label: "累計公欠時数", defaultOn: false },
   ];
   for (const s of symbolRows) {
     cols.push({
@@ -268,7 +268,7 @@ export function buildColumnDefs(
   for (const m of months) {
     cols.push({
       key: `month_${m.year}_${m.month}_req`,
-      label: `${m.label}要出席日数`,
+      label: `${m.label}要出席時数`,
       defaultOn: false,
     });
     cols.push({
