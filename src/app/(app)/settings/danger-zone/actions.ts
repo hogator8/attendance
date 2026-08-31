@@ -102,5 +102,28 @@ export async function resetAllData(formData: FormData) {
     }
   }
 
+  // 7. 念のため、残っているadminそれぞれにstaff_permissions行が存在することを
+  //    保証する（既に存在する場合は何もしない）。admin自身のstaff行・
+  //    staff_permissions行は上記の削除処理では一切削除していないため
+  //    通常は不要だが、防御的に実行しておく。
+  const { data: remainingAdmins, error: adminFetchError } = await admin
+    .from("staff")
+    .select("id")
+    .eq("role", "admin");
+  if (adminFetchError) {
+    throw new Error(`管理者一覧の取得に失敗しました: ${adminFetchError.message}`);
+  }
+  if (remainingAdmins && remainingAdmins.length > 0) {
+    const { error: ensurePermError } = await admin
+      .from("staff_permissions")
+      .upsert(
+        remainingAdmins.map((a) => ({ staff_id: a.id })),
+        { onConflict: "staff_id", ignoreDuplicates: true },
+      );
+    if (ensurePermError) {
+      throw new Error(`管理者の権限行の確認に失敗しました: ${ensurePermError.message}`);
+    }
+  }
+
   revalidatePath("/", "layout");
 }
