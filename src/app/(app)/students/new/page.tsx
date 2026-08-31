@@ -74,7 +74,7 @@ export default async function NewStudentPage() {
       <div className={`${cardClass} max-w-lg`}>
         <h2 className="mb-1 font-bold text-slate-900">CSV一括登録</h2>
         <p className="mb-3 text-xs text-slate-500">
-          「学籍番号,氏名,フリガナ,国籍,性別,生年月日,入学日,卒業予定年月日,クラス名」の形式のCSVファイルを選択してください（国籍・性別・生年月日・卒業予定年月日・クラス名は任意）。
+          「学籍番号,氏名,フリガナ,国籍,性別,生年月日,入学日,卒業予定年月日,クラス名」の形式のCSVファイルを選択してください（国籍・性別・生年月日・卒業予定年月日・クラス名は任意。日付はYYYY/MM/DD形式）。
           クラス名を指定すると、アクティブな学期の同名ホームルームクラスへ自動配属します。写真は登録後に個別にアップロードしてください。
           <br />
           <Link href="/students/new/template" className="text-blue-600 underline">

@@ -5,9 +5,10 @@ import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission, canInputClass } from "@/lib/permissions";
 import { readCsvFile } from "@/lib/csv";
+import { parseFlexibleDate, parseFlexibleYearMonth } from "@/lib/date";
 
 // 標準パターン：月別集計のみのCSV取り込み。
-// 1行につき「学籍番号,年月(YYYY-MM),要出席日数,出席日数,欠席日数,遅刻回数,早退回数,公欠日数,除外日数」
+// 1行につき「学籍番号,年月(YYYY/MM),要出席日数,出席日数,欠席日数,遅刻回数,早退回数,公欠日数,除外日数」
 // （出席記号設定の集計区分 attendance/absence/late/early_leave/excused/excluded の6区分に対応）
 export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
   const staff = await requireStaff();
@@ -25,7 +26,7 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
 
   type Row = {
     studentNumber: string;
-    yearMonth: string;
+    yearMonth: string | null;
     requiredDays: number;
     attendedDays: number;
     absentDays: number;
@@ -36,10 +37,10 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
   };
   const rows: Row[] = lines.map((line) => {
     const cols = line.split(",").map((s) => s.trim());
-    const [studentNumber, yearMonth, req, attended, absent, late, early, excused, excluded] = cols;
+    const [studentNumber, yearMonthRaw, req, attended, absent, late, early, excused, excluded] = cols;
     return {
       studentNumber: studentNumber ?? "",
-      yearMonth: yearMonth ?? "",
+      yearMonth: yearMonthRaw ? parseFlexibleYearMonth(yearMonthRaw) : null,
       requiredDays: Number(req ?? "0"),
       attendedDays: Number(attended ?? "0"),
       absentDays: Number(absent ?? "0"),
@@ -53,7 +54,7 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
   const invalid = rows.find(
     (r) =>
       !r.studentNumber ||
-      !/^\d{4}-\d{2}$/.test(r.yearMonth) ||
+      !r.yearMonth ||
       [
         r.requiredDays,
         r.attendedDays,
@@ -66,7 +67,7 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
   );
   if (invalid) {
     throw new Error(
-      "CSVの形式が不正です。各行「学籍番号,YYYY-MM,要出席時数,出席時数,欠席時数,遅刻回数,早退回数,公欠時数,除外時数」で入力してください。",
+      "CSVの形式が不正です。各行「学籍番号,YYYY/MM,要出席時数,出席時数,欠席時数,遅刻回数,早退回数,公欠時数,除外時数」で入力してください。",
     );
   }
 
@@ -86,7 +87,8 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
 
   const upserts = rows.map((r) => ({
     student_id: studentIdByNumber.get(r.studentNumber)!,
-    year_month: `${r.yearMonth}-01`,
+    // 上のバリデーションで不正形式は弾いているため非nullが保証されている
+    year_month: `${r.yearMonth!}-01`,
     required_days: r.requiredDays,
     attended_days: r.attendedDays,
     absent_days: r.absentDays,
@@ -105,7 +107,7 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
 }
 
 // 詳細パターン：日次の出席データを attendance_records に直接取り込む。
-// 1行につき「学籍番号,日付(YYYY-MM-DD),時限,記号,時刻(任意),理由(任意)」
+// 1行につき「学籍番号,日付(YYYY/MM/DD),時限,記号,時刻(任意),理由(任意)」
 // 記号は、選択したクラスが属する学期のsymbol_charと一致するものを使う。
 export async function importHistoricalAttendanceCsv(formData: FormData) {
   const staff = await requireStaff();
@@ -132,7 +134,7 @@ export async function importHistoricalAttendanceCsv(formData: FormData) {
 
   type Row = {
     studentNumber: string;
-    date: string;
+    date: string | null;
     periodNo: number;
     symbolChar: string;
     time: string | null;
@@ -140,10 +142,10 @@ export async function importHistoricalAttendanceCsv(formData: FormData) {
   };
   const rows: Row[] = lines.map((line) => {
     const cols = line.split(",").map((s) => s.trim());
-    const [studentNumber, date, periodNoRaw, symbolChar, time, reason] = cols;
+    const [studentNumber, dateRaw, periodNoRaw, symbolChar, time, reason] = cols;
     return {
       studentNumber: studentNumber ?? "",
-      date: date ?? "",
+      date: dateRaw ? parseFlexibleDate(dateRaw) : null,
       periodNo: Number(periodNoRaw ?? "0"),
       symbolChar: symbolChar ?? "",
       time: time || null,
@@ -154,14 +156,14 @@ export async function importHistoricalAttendanceCsv(formData: FormData) {
   const invalid = rows.find(
     (r) =>
       !r.studentNumber ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(r.date) ||
+      !r.date ||
       !Number.isInteger(r.periodNo) ||
       r.periodNo <= 0 ||
       !r.symbolChar,
   );
   if (invalid) {
     throw new Error(
-      "CSVの形式が不正です。各行「学籍番号,YYYY-MM-DD,時限,記号,時刻(任意),理由(任意)」で入力してください。",
+      "CSVの形式が不正です。各行「学籍番号,YYYY/MM/DD,時限,記号,時刻(任意),理由(任意)」で入力してください。",
     );
   }
 
@@ -192,7 +194,8 @@ export async function importHistoricalAttendanceCsv(formData: FormData) {
   const upserts = rows.map((r) => ({
     student_id: studentIdByNumber.get(r.studentNumber)!,
     class_id: classId,
-    date: r.date,
+    // 上のバリデーションで不正形式は弾いているため非nullが保証されている
+    date: r.date!,
     period_no: r.periodNo,
     symbol_id: symbolIdByChar.get(r.symbolChar)!,
     time_value: r.time,
