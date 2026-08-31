@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -202,7 +203,17 @@ export default async function AttendanceStatusPage({
           </section>
 
           <section>
-            <h2 className="mb-2 font-bold text-slate-900">日々の記録</h2>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h2 className="font-bold text-slate-900">日々の記録</h2>
+              {status.dailyRecords.length > 0 && (
+                <Link
+                  href={`/attendance-status/export?student_id=${studentId}`}
+                  className={buttonSecondaryClass}
+                >
+                  CSVダウンロード
+                </Link>
+              )}
+            </div>
             {status.dailyRecords.length === 0 ? (
               <p className="text-sm text-slate-500">記録がありません。</p>
             ) : (
