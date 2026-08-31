@@ -453,9 +453,7 @@ function StudentBadge({
           className="h-8 w-8 rounded-full object-cover"
         />
       ) : (
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-[10px] text-slate-500">
-          写真
-        </span>
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs text-slate-500" />
       )}
       <div>
         <p className="text-sm font-medium text-slate-900">

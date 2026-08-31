@@ -35,6 +35,7 @@ export interface SchoolSettings {
   schoolAddress: string;
   schoolPhone: string;
   principalName: string;
+  longVacation: string;
 }
 
 export async function getSchoolSettings(supabase: Client): Promise<SchoolSettings> {
@@ -48,6 +49,7 @@ export async function getSchoolSettings(supabase: Client): Promise<SchoolSetting
     schoolAddress: data?.school_address ?? "",
     schoolPhone: data?.school_phone ?? "",
     principalName: data?.principal_name ?? "",
+    longVacation: data?.long_vacation ?? "",
   };
 }
 

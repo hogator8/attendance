@@ -22,6 +22,7 @@ export function buildCertificateWorkbook(
   data: CertificateData,
   school: SchoolSettings,
   remarks: string,
+  longVacation: string,
   issueDate: string,
 ): ExcelJS.Workbook {
   const { student } = data;
@@ -179,6 +180,15 @@ export function buildCertificateWorkbook(
   remarksCell.value = remarks;
   remarksCell.alignment = { horizontal: "left", vertical: "top", wrapText: true };
   remarksCell.border = thinBorder;
+  row += 4;
+
+  sheet.getCell(row, 2).value = "長期休暇：";
+  sheet.getCell(row, 2).font = { bold: true };
+  sheet.mergeCells(row, 3, row + 2, 14);
+  const longVacationCell = sheet.getCell(row, 3);
+  longVacationCell.value = longVacation;
+  longVacationCell.alignment = { horizontal: "left", vertical: "top", wrapText: true };
+  longVacationCell.border = thinBorder;
   row += 4;
 
   sheet.mergeCells(row, 9, row, 14);

@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const studentId = searchParams.get("student_id");
   const remarks = searchParams.get("remarks") ?? "";
+  const longVacation = searchParams.get("long_vacation") ?? "";
   if (!studentId) {
     return NextResponse.json({ error: "学生を選択してください。" }, { status: 400 });
   }
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
   }
 
   const issueDate = todayISO();
-  const workbook = buildCertificateWorkbook(data, school, remarks, issueDate);
+  const workbook = buildCertificateWorkbook(data, school, remarks, longVacation, issueDate);
   const buffer = await workbook.xlsx.writeBuffer();
   const fileName = `出席証明書_${data.student.student_number}_${issueDate}.xlsx`;
 

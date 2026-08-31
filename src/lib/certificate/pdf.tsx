@@ -220,6 +220,7 @@ export async function renderCertificatePdf(
   data: CertificateData,
   school: SchoolSettings,
   remarks: string,
+  longVacation: string,
   issueDate: string,
 ): Promise<Buffer> {
   ensureFontRegistered();
@@ -281,6 +282,11 @@ export async function renderCertificatePdf(
         <View style={styles.remarksBox}>
           <Text style={styles.remarksLabel}>特記事項：</Text>
           <Text>{remarks}</Text>
+        </View>
+
+        <View style={styles.remarksBox}>
+          <Text style={styles.remarksLabel}>長期休暇：</Text>
+          <Text>{longVacation}</Text>
         </View>
 
         <View style={styles.footer}>

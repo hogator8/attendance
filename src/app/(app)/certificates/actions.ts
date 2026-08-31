@@ -24,3 +24,18 @@ export async function saveSchoolSettings(formData: FormData) {
 
   revalidatePath("/certificates");
 }
+
+export async function saveLongVacation(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const longVacation = String(formData.get("long_vacation") ?? "").trim();
+
+  const { error } = await supabase.from("school_settings").upsert({
+    id: 1,
+    long_vacation: longVacation,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/certificates");
+}

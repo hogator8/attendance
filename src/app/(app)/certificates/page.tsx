@@ -1,7 +1,7 @@
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getCertificateData, getSchoolSettings } from "@/lib/certificate/data";
-import { saveSchoolSettings } from "./actions";
+import { saveSchoolSettings, saveLongVacation } from "./actions";
 import SubmitForm from "@/components/SubmitForm";
 import {
   inputClass,
@@ -198,6 +198,16 @@ export default async function CertificatesPage({
                   placeholder="必要に応じて記入してください"
                 />
               </div>
+              <div className="flex flex-col gap-1">
+                <label className={labelClass}>長期休暇</label>
+                <textarea
+                  name="long_vacation"
+                  rows={3}
+                  defaultValue={school.longVacation}
+                  className={inputClass}
+                  placeholder="必要に応じて記入してください"
+                />
+              </div>
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -251,6 +261,35 @@ export default async function CertificatesPage({
               <input
                 name="principal_name"
                 defaultValue={school.principalName}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <button type="submit" className={buttonPrimaryClass}>
+                保存
+              </button>
+            </div>
+          </SubmitForm>
+        </section>
+      )}
+
+      {staff.role === "admin" && (
+        <section className={`${cardClass} max-w-xl`}>
+          <h2 className="mb-1 font-bold text-slate-900">長期休暇設定</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            ここで保存した内容が、証明書発行時の「長期休暇」欄の初期値として反映されます。発行時に個別に修正することもできます。
+          </p>
+          <SubmitForm
+            action={saveLongVacation}
+            successMessage="長期休暇設定を保存しました"
+            className="flex flex-col gap-3"
+          >
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>長期休暇</label>
+              <textarea
+                name="long_vacation"
+                rows={3}
+                defaultValue={school.longVacation}
                 className={inputClass}
               />
             </div>

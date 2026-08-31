@@ -486,6 +486,7 @@ export interface Database {
           school_address: string;
           school_phone: string;
           principal_name: string;
+          long_vacation: string;
           updated_at: string;
         };
         Insert: {
@@ -494,6 +495,7 @@ export interface Database {
           school_address?: string;
           school_phone?: string;
           principal_name?: string;
+          long_vacation?: string;
         };
         Update: Partial<Database["public"]["Tables"]["school_settings"]["Insert"]>;
         Relationships: [];
