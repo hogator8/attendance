@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { termHasBlockingData } from "./termDeletion";
 
 export async function createTerm(formData: FormData) {
   await requireAdmin();
@@ -59,38 +60,15 @@ export async function setTermActive(formData: FormData) {
   revalidatePath("/home");
 }
 
-// 学期の削除。classes/events/holidays（いずれもterms.idを直接参照し、
-// class_enrollments・timetable_versions/slots・staff_class_permissions・
-// schedule_change_overrides・attendance_records・event_classes・
-// event_replaced_periods・event_attendanceはすべてclasses.id/events.id経由の
-// 外部キー（NOT NULL）でのみ存在しうる）のいずれかに1件でも行があれば、
-// この学期に実データが存在するとみなして削除をブロックする。
-// symbols・conversion_rules・color_rules・term_settings（学期ごとの設定値）は
-// 「実データ」に含めず、削除許可時はterms行のON DELETE CASCADEでまとめて
-// 削除されるに任せる。
+// 学期の削除。判定ロジックの詳細はtermDeletion.tsのtermHasBlockingDataを参照。
 export async function deleteTerm(formData: FormData) {
   await requireAdmin();
   const supabase = await createClient();
   const termId = String(formData.get("term_id") ?? "");
   if (!termId) throw new Error("学期IDが不正です。");
 
-  const [{ count: classCount }, { count: eventCount }, { count: holidayCount }] =
-    await Promise.all([
-      supabase
-        .from("classes")
-        .select("id", { count: "exact", head: true })
-        .eq("term_id", termId),
-      supabase
-        .from("events")
-        .select("id", { count: "exact", head: true })
-        .eq("term_id", termId),
-      supabase
-        .from("holidays")
-        .select("id", { count: "exact", head: true })
-        .eq("term_id", termId),
-    ]);
-
-  if ((classCount ?? 0) > 0 || (eventCount ?? 0) > 0 || (holidayCount ?? 0) > 0) {
+  const blocked = await termHasBlockingData(supabase, termId);
+  if (blocked) {
     throw new Error(
       "この学期にはクラス・行事・休業日などのデータが既に登録されているため削除できません。削除するには、先にそれらのデータをすべて削除してください。",
     );

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import SubmitForm from "@/components/SubmitForm";
 import ConfirmSubmitButton from "@/components/ConfirmSubmitButton";
 import { createTerm, setTermActive, deleteTerm } from "./actions";
+import { getBlockedTermIds } from "./termDeletion";
 import {
   cardClass,
   inputClass,
@@ -24,22 +25,11 @@ export default async function TermsPage() {
     .select("*")
     .order("start_date", { ascending: false });
 
-  // 学期削除の可否判定：classes/events/holidaysのいずれかに1件でも行が
-  // あれば「実データあり」として削除をブロックする（詳細はactions.tsを参照）。
+  // 学期削除の可否判定（詳細はtermDeletion.tsのtermHasBlockingDataを参照）。
+  // 削除の実際の可否判定（Server Action側）と全く同じロジックを使うため、
+  // 表示のヒントと実際の許可がずれることはない。
   const termIds = (terms ?? []).map((t) => t.id);
-  const [{ data: classRows }, { data: eventRows }, { data: holidayRows }] =
-    termIds.length > 0
-      ? await Promise.all([
-          supabase.from("classes").select("term_id").in("term_id", termIds),
-          supabase.from("events").select("term_id").in("term_id", termIds),
-          supabase.from("holidays").select("term_id").in("term_id", termIds),
-        ])
-      : [{ data: [] }, { data: [] }, { data: [] }];
-  const blockedTermIds = new Set([
-    ...(classRows ?? []).map((r) => r.term_id),
-    ...(eventRows ?? []).map((r) => r.term_id),
-    ...(holidayRows ?? []).map((r) => r.term_id),
-  ]);
+  const blockedTermIds = await getBlockedTermIds(supabase, termIds);
 
   return (
     <div className="flex flex-col gap-6">
