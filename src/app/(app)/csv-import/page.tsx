@@ -50,7 +50,7 @@ export default async function CsvImportPage() {
         <p className="mb-3 text-xs text-slate-500">
           日次データを持たず、学生×年月ごとの集計値のみを取り込みます。この月は集計画面の月別出席率にもそのまま反映されます（日次ドリルダウンは行いません）。
           <br />
-          「学籍番号,年月(YYYY-MM),要出席日数,出席日数,欠席日数,遅刻回数,早退回数,公欠日数,除外日数」の形式のCSVファイルを選択してください。
+          「学籍番号,年月(YYYY-MM),要出席時数,出席時数,欠席時数,遅刻回数,早退回数,公欠時数,除外時数」の形式のCSVファイルを選択してください。
           <br />
           <Link
             href="/csv-import/templates/monthly"

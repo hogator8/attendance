@@ -252,29 +252,29 @@ export function buildDetailColumns(
 ): DetailColumnDef[] {
   const c = status.cumulative;
   const cols: DetailColumnDef[] = [
-    { key: "cum_req_days", label: "累計要出席日数", value: String(c.reqDays), defaultOn: false },
+    { key: "cum_req_days", label: "累計要出席時数", value: String(c.reqDays), defaultOn: false },
     {
       key: "cum_rate",
       label: "累計出席率",
       value: formatPercent(c.rate, decimalDigits),
       defaultOn: true,
     },
-    { key: "cum_raw_abs", label: "累計欠席日数", value: String(c.rawAbsCount), defaultOn: false },
+    { key: "cum_raw_abs", label: "累計欠席時数", value: String(c.rawAbsCount), defaultOn: false },
     { key: "cum_late", label: "累計遅刻回数", value: String(c.lateCount), defaultOn: false },
     { key: "cum_early", label: "累計早退回数", value: String(c.earlyCount), defaultOn: false },
     {
       key: "cum_converted_abs",
-      label: "累計換算欠席日数",
+      label: "累計換算欠席時数",
       value: String(c.convertedAbsences),
       defaultOn: false,
     },
     {
       key: "cum_total_abs",
-      label: "累計合計欠席日数",
+      label: "累計合計欠席時数",
       value: String(c.totalAbsences),
       defaultOn: false,
     },
-    { key: "cum_excused", label: "累計公欠日数", value: String(c.excusedCount), defaultOn: false },
+    { key: "cum_excused", label: "累計公欠時数", value: String(c.excusedCount), defaultOn: false },
   ];
   for (const [label, count] of status.symbolCountsByLabel.entries()) {
     cols.push({ key: `symbol_${label}`, label: `累計${label}`, value: String(count), defaultOn: false });
@@ -282,7 +282,7 @@ export function buildDetailColumns(
   for (const m of status.monthlyRows) {
     cols.push({
       key: `month_${m.key}_req`,
-      label: `${m.label}　要出席日数`,
+      label: `${m.label}　要出席時数`,
       value: String(m.reqDays),
       defaultOn: false,
     });

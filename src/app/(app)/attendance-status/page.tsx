@@ -86,7 +86,7 @@ export default async function AttendanceStatusPage({
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div>
-                <p className="text-xs text-slate-500">累計要出席日数</p>
+                <p className="text-xs text-slate-500">累計要出席時数</p>
                 <p className="text-lg font-bold text-slate-900">{status.cumulative.reqDays}</p>
               </div>
               <div>
@@ -96,7 +96,7 @@ export default async function AttendanceStatusPage({
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">累計欠席日数</p>
+                <p className="text-xs text-slate-500">累計欠席時数</p>
                 <p className="text-lg font-bold text-slate-900">
                   {status.cumulative.rawAbsCount}
                 </p>
@@ -110,7 +110,7 @@ export default async function AttendanceStatusPage({
                 <p className="text-lg font-bold text-slate-900">{status.cumulative.earlyCount}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">累計公欠日数</p>
+                <p className="text-xs text-slate-500">累計公欠時数</p>
                 <p className="text-lg font-bold text-slate-900">
                   {status.cumulative.excusedCount}
                 </p>

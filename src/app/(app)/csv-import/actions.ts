@@ -66,7 +66,7 @@ export async function importHistoricalMonthlySummariesCsv(formData: FormData) {
   );
   if (invalid) {
     throw new Error(
-      "CSVの形式が不正です。各行「学籍番号,YYYY-MM,要出席日数,出席日数,欠席日数,遅刻回数,早退回数,公欠日数,除外日数」で入力してください。",
+      "CSVの形式が不正です。各行「学籍番号,YYYY-MM,要出席時数,出席時数,欠席時数,遅刻回数,早退回数,公欠時数,除外時数」で入力してください。",
     );
   }
 
