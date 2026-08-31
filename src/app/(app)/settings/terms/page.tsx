@@ -2,13 +2,16 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import SubmitForm from "@/components/SubmitForm";
-import { createTerm, setTermActive } from "./actions";
+import ConfirmSubmitButton from "@/components/ConfirmSubmitButton";
+import { createTerm, setTermActive, deleteTerm } from "./actions";
+import { getBlockedTermIds } from "./termDeletion";
 import {
   cardClass,
   inputClass,
   labelClass,
   buttonPrimaryClass,
   buttonSecondaryClass,
+  buttonDangerClass,
   tableClass,
   thClass,
   tdClass,
@@ -22,6 +25,12 @@ export default async function TermsPage() {
     .select("*")
     .order("start_date", { ascending: false });
 
+  // 学期削除の可否判定（詳細はtermDeletion.tsのtermHasBlockingDataを参照）。
+  // 削除の実際の可否判定（Server Action側）と全く同じロジックを使うため、
+  // 表示のヒントと実際の許可がずれることはない。
+  const termIds = (terms ?? []).map((t) => t.id);
+  const blockedTermIds = await getBlockedTermIds(supabase, termIds);
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-bold text-slate-900">学期管理</h1>
@@ -34,6 +43,7 @@ export default async function TermsPage() {
               <th className={thClass}>授業期間</th>
               <th className={thClass}>状態</th>
               <th className={thClass}>設定</th>
+              <th className={thClass}></th>
               <th className={thClass}></th>
             </tr>
           </thead>
@@ -81,11 +91,28 @@ export default async function TermsPage() {
                     </button>
                   </SubmitForm>
                 </td>
+                <td className={tdClass}>
+                  <SubmitForm action={deleteTerm} successMessage="学期を削除しました">
+                    <input type="hidden" name="term_id" value={term.id} />
+                    {blockedTermIds.has(term.id) ? (
+                      <button type="submit" className={buttonDangerClass}>
+                        削除
+                      </button>
+                    ) : (
+                      <ConfirmSubmitButton
+                        confirmMessage={`「${term.name}」を削除します。この操作は取り消せません。よろしいですか？`}
+                        className={buttonDangerClass}
+                      >
+                        削除
+                      </ConfirmSubmitButton>
+                    )}
+                  </SubmitForm>
+                </td>
               </tr>
             ))}
             {(terms ?? []).length === 0 && (
               <tr>
-                <td className={tdClass} colSpan={5}>
+                <td className={tdClass} colSpan={6}>
                   学期がまだ登録されていません。
                 </td>
               </tr>

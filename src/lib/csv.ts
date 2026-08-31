@@ -23,3 +23,12 @@ export function csvDownloadResponse(lines: string[], fileName: string): NextResp
     },
   });
 }
+
+// CSVの1フィールド値をエスケープする。カンマ・ダブルクォート・改行を含む
+// 場合のみダブルクォートで囲み、内部のダブルクォートは二重にする。
+export function csvField(value: string): string {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}

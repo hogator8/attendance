@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { termHasBlockingData } from "./termDeletion";
 
 export async function createTerm(formData: FormData) {
   await requireAdmin();
@@ -53,6 +54,27 @@ export async function setTermActive(formData: FormData) {
     .from("terms")
     .update({ is_active: active })
     .eq("id", termId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings/terms");
+  revalidatePath("/home");
+}
+
+// 学期の削除。判定ロジックの詳細はtermDeletion.tsのtermHasBlockingDataを参照。
+export async function deleteTerm(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const termId = String(formData.get("term_id") ?? "");
+  if (!termId) throw new Error("学期IDが不正です。");
+
+  const blocked = await termHasBlockingData(supabase, termId);
+  if (blocked) {
+    throw new Error(
+      "この学期にはクラス・行事・休業日などのデータが既に登録されているため削除できません。削除するには、先にそれらのデータをすべて削除してください。",
+    );
+  }
+
+  const { error } = await supabase.from("terms").delete().eq("id", termId);
   if (error) throw new Error(error.message);
 
   revalidatePath("/settings/terms");
