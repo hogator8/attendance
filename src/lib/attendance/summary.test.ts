@@ -66,6 +66,45 @@ test("buildStudentSummaries: 累計期間と月別が独立して集計される
   assert.equal(s1.months[1].reqDays, 1); // 5月分のみ
 });
 
+test("buildStudentSummaries: 累計の換算欠席数は月ごとにfloor計算してから合算する（月をまたいで合算してから1回だけfloorしない）", () => {
+  const lateSymbols: SymbolInfo[] = [
+    { id: "present", category: "attendance", countsAsRequired: true, isLateEarlyTarget: false },
+    { id: "late", category: "late", countsAsRequired: true, isLateEarlyTarget: true },
+  ];
+
+  const summaries = buildStudentSummaries(
+    ["s1"],
+    [
+      // 4月：遅刻5回
+      { studentId: "s1", date: "2026-04-01", symbolId: "late" },
+      { studentId: "s1", date: "2026-04-02", symbolId: "late" },
+      { studentId: "s1", date: "2026-04-03", symbolId: "late" },
+      { studentId: "s1", date: "2026-04-04", symbolId: "late" },
+      { studentId: "s1", date: "2026-04-05", symbolId: "late" },
+      // 5月：遅刻2回
+      { studentId: "s1", date: "2026-05-01", symbolId: "late" },
+      { studentId: "s1", date: "2026-05-02", symbolId: "late" },
+    ],
+    [],
+    lateSymbols,
+    { lateN: 3, earlyN: 0, combinedN: 0 },
+    "2026-04-01",
+    "2026-05-31",
+    monthBuckets("2026-04-01", "2026-05-31"),
+  );
+
+  const s1 = summaries[0];
+  // 月別：4月はfloor(5/3)=1、5月はfloor(2/3)=0（月別表示自体は従来通り変更なし）
+  assert.equal(s1.months[0].convertedAbsences, 1);
+  assert.equal(s1.months[1].convertedAbsences, 0);
+  // 累計：月ごとのfloor結果を合算した1（floor((5+2)/3)=2ではない）
+  assert.equal(s1.cumulative.convertedAbsences, 1);
+  assert.equal(s1.cumulative.rawAbsCount, 0);
+  assert.equal(s1.cumulative.totalAbsences, 1);
+  assert.equal(s1.cumulative.reqDays, 7);
+  assert.equal(s1.cumulative.rate, (7 - 1) / 7);
+});
+
 test("buildStudentSummaries: 学校行事はcredit_periodsで重み付けされる", () => {
   const summaries = buildStudentSummaries(
     ["s1"],
