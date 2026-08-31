@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { uploadStudentPhoto } from "@/lib/storage";
 import { getActiveTerms } from "@/lib/terms";
 import { readCsvFile } from "@/lib/csv";
+import { parseFlexibleDate } from "@/lib/date";
 import { withFlash } from "@/lib/flash";
 
 export async function createStudent(formData: FormData) {
@@ -82,9 +83,10 @@ export async function importStudentsCsv(formData: FormData) {
     nationality: string | null;
     gender: string | null;
     dateOfBirth: string | null;
-    enrollmentDate: string;
+    enrollmentDate: string | null;
     expectedGraduationDate: string | null;
     className: string | null;
+    hasDateFormatError: boolean;
   };
   const rows: Row[] = lines.map((line) => {
     const cols = line.split(",").map((s) => s.trim());
@@ -94,37 +96,43 @@ export async function importStudentsCsv(formData: FormData) {
       furigana,
       nationality,
       gender,
-      dateOfBirth,
-      enrollmentDate,
-      expectedGraduationDate,
+      dateOfBirthRaw,
+      enrollmentDateRaw,
+      expectedGraduationDateRaw,
       className,
     ] = cols;
+
+    const dateOfBirth = dateOfBirthRaw ? parseFlexibleDate(dateOfBirthRaw) : null;
+    const enrollmentDate = enrollmentDateRaw ? parseFlexibleDate(enrollmentDateRaw) : null;
+    const expectedGraduationDate = expectedGraduationDateRaw
+      ? parseFlexibleDate(expectedGraduationDateRaw)
+      : null;
+    const hasDateFormatError =
+      (!!dateOfBirthRaw && dateOfBirth === null) ||
+      !enrollmentDateRaw ||
+      enrollmentDate === null ||
+      (!!expectedGraduationDateRaw && expectedGraduationDate === null);
+
     return {
       studentNumber: studentNumber ?? "",
       name: name ?? "",
       furigana: furigana ?? "",
       nationality: nationality || null,
       gender: gender || null,
-      dateOfBirth: dateOfBirth || null,
-      enrollmentDate: enrollmentDate ?? "",
-      expectedGraduationDate: expectedGraduationDate || null,
+      dateOfBirth,
+      enrollmentDate,
+      expectedGraduationDate,
       className: className || null,
+      hasDateFormatError,
     };
   });
 
-  const dateOk = (v: string | null) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v);
   const invalid = rows.find(
-    (r) =>
-      !r.studentNumber ||
-      !r.name ||
-      !r.furigana ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(r.enrollmentDate) ||
-      !dateOk(r.dateOfBirth) ||
-      !dateOk(r.expectedGraduationDate),
+    (r) => !r.studentNumber || !r.name || !r.furigana || r.hasDateFormatError,
   );
   if (invalid) {
     throw new Error(
-      "CSVの形式が不正です。各行「学籍番号,氏名,フリガナ,国籍(任意),性別(任意),生年月日(任意・YYYY-MM-DD),YYYY-MM-DD,卒業予定年月日(任意・YYYY-MM-DD),クラス名(任意)」で入力してください。",
+      "CSVの形式が不正です。各行「学籍番号,氏名,フリガナ,国籍(任意),性別(任意),生年月日(任意・YYYY/MM/DD),YYYY/MM/DD,卒業予定年月日(任意・YYYY/MM/DD),クラス名(任意)」で入力してください。",
     );
   }
 
@@ -152,7 +160,8 @@ export async function importStudentsCsv(formData: FormData) {
         nationality: r.nationality,
         gender: r.gender,
         date_of_birth: r.dateOfBirth,
-        enrollment_date: r.enrollmentDate,
+        // 上のバリデーションで空欄・不正形式は弾いているため非nullが保証されている
+        enrollment_date: r.enrollmentDate!,
         expected_graduation_date: r.expectedGraduationDate,
       })),
     )
@@ -172,7 +181,7 @@ export async function importStudentsCsv(formData: FormData) {
       return {
         student_id: studentId,
         class_id: classId,
-        valid_from: r.enrollmentDate,
+        valid_from: r.enrollmentDate!,
       };
     })
     .filter((e): e is NonNullable<typeof e> => !!e);

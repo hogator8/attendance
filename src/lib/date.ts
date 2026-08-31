@@ -42,6 +42,32 @@ export interface MonthBucket {
   label: string;
 }
 
+// CSV一括登録の日付欄（YYYY/MM/DD）をパースする。区切り文字は "/" を正としつつ、
+// 従来形式の "-" 区切りも引き続き受け付ける。月・日はゼロ埋めなし（例："2025/1/4"）
+// でも受け付ける（Excelでセルの書式が「日付」のままCSV保存すると、区切りが自動的に
+// "/"・ゼロ埋めなしになることが多く、それをそのまま取り込めるようにするため）。
+// 妥当な形式であれば "YYYY-MM-DD"（DB保存・内部の日付比較で使う正規形）を返し、
+// 形式が不正なら null を返す。
+export function parseFlexibleDate(value: string): string | null {
+  const match = value.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (!match) return null;
+  const [, y, m, d] = match;
+  const month = Number(m);
+  const day = Number(d);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+// parseFlexibleDate の年月版（YYYY/MM。日を持たない月次データ用）。
+export function parseFlexibleYearMonth(value: string): string | null {
+  const match = value.trim().match(/^(\d{4})[-/](\d{1,2})$/);
+  if (!match) return null;
+  const [, y, m] = match;
+  const month = Number(m);
+  if (month < 1 || month > 12) return null;
+  return `${y}-${m.padStart(2, "0")}`;
+}
+
 // termStart〜termEnd の範囲を、暦月単位（学期の開始・終了で端を切り詰め）に分割する。
 export function monthBuckets(termStart: string, termEnd: string): MonthBucket[] {
   const buckets: MonthBucket[] = [];

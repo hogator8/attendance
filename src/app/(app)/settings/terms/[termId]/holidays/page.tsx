@@ -92,7 +92,7 @@ export default async function HolidaysSettingsPage({
       <div className={`${cardClass} max-w-lg`}>
         <h2 className="mb-1 font-bold text-slate-900">CSV一括登録</h2>
         <p className="mb-3 text-xs text-slate-500">
-          1行につき「YYYY-MM-DD,項目名,色(任意・#RRGGBB)」の形式のCSVファイルを選択してください。
+          1行につき「YYYY/MM/DD,項目名,色(任意・#RRGGBB)」の形式のCSVファイルを選択してください。
         </p>
         <SubmitForm
           action={importHolidaysCsv}

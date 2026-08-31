@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readCsvFile } from "@/lib/csv";
+import { parseFlexibleDate } from "@/lib/date";
 
 export async function addHoliday(formData: FormData) {
   await requirePermission("can_manage_settings");
@@ -39,7 +40,7 @@ export async function deleteHoliday(formData: FormData) {
   revalidatePath(`/settings/terms/${termId}/holidays`);
 }
 
-// CSV一括登録：1行につき「日付,項目名,色(任意・#RRGGBB)」の形式
+// CSV一括登録：1行につき「日付(YYYY/MM/DD),項目名,色(任意・#RRGGBB)」の形式
 export async function importHolidaysCsv(formData: FormData) {
   await requirePermission("can_manage_settings");
   const supabase = await createClient();
@@ -52,22 +53,23 @@ export async function importHolidaysCsv(formData: FormData) {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .map((line) => {
-      const [date, label, colorHex] = line.split(",").map((s) => s.trim());
+      const [dateRaw, label, colorHex] = line.split(",").map((s) => s.trim());
+      const date = dateRaw ? parseFlexibleDate(dateRaw) : null;
       return { term_id: termId, date, label, color_hex: colorHex || "#FFCCCC" };
     });
 
-  const invalid = rows.find(
-    (r) => !r.date || !/^\d{4}-\d{2}-\d{2}$/.test(r.date) || !r.label,
-  );
+  const invalid = rows.find((r) => !r.date || !r.label);
   if (invalid) {
     throw new Error(
-      "CSVの形式が不正です。各行「YYYY-MM-DD,項目名,色(任意)」で入力してください。",
+      "CSVの形式が不正です。各行「YYYY/MM/DD,項目名,色(任意)」で入力してください。",
     );
   }
 
-  const { error } = await supabase
-    .from("holidays")
-    .upsert(rows, { onConflict: "term_id,date" });
+  const { error } = await supabase.from("holidays").upsert(
+    // 上のバリデーションで空欄・不正形式は弾いているためdateの非nullが保証されている
+    rows.map((r) => ({ ...r, date: r.date! })),
+    { onConflict: "term_id,date" },
+  );
   if (error) throw new Error(error.message);
 
   revalidatePath(`/settings/terms/${termId}/holidays`);
