@@ -24,6 +24,7 @@ export async function createStudent(formData: FormData) {
   const expectedGraduationDate = String(
     formData.get("expected_graduation_date") ?? "",
   ).trim();
+  const categoryId = String(formData.get("category_id") ?? "").trim();
   const photo = formData.get("photo");
 
   if (!studentNumber || !name || !furigana || !enrollmentDate) {
@@ -41,6 +42,7 @@ export async function createStudent(formData: FormData) {
       date_of_birth: dateOfBirth || null,
       enrollment_date: enrollmentDate,
       expected_graduation_date: expectedGraduationDate || null,
+      category_id: categoryId || null,
     })
     .select()
     .single();

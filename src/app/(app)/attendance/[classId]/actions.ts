@@ -28,20 +28,22 @@ export async function saveAttendance(formData: FormData) {
     throw new Error("このクラスへの出席入力権限がありません。");
   }
 
+  // 出席入力ログ（class_name）・授業期間外チェックの両方で使うため、
+  // クラス名・学期IDは常に取得しておく。
+  const { data: cls } = await supabase
+    .from("classes")
+    .select("name, term_id")
+    .eq("id", classId)
+    .maybeSingle();
+  if (!cls) throw new Error("クラスが見つかりません。");
+
   // 一般教員は学期の授業期間外の日付には入力できない（管理者は制限なし）
   if (staff.role !== "admin") {
-    const { data: cls } = await supabase
-      .from("classes")
-      .select("term_id")
-      .eq("id", classId)
+    const { data: term } = await supabase
+      .from("terms")
+      .select("start_date, end_date")
+      .eq("id", cls.term_id)
       .maybeSingle();
-    const { data: term } = cls
-      ? await supabase
-          .from("terms")
-          .select("start_date, end_date")
-          .eq("id", cls.term_id)
-          .maybeSingle()
-      : { data: null };
     if (term && (date < term.start_date || date > term.end_date)) {
       throw new Error("授業期間外のため出席を入力できません。");
     }
@@ -69,6 +71,16 @@ export async function saveAttendance(formData: FormData) {
   const evtUpserts: EvtUpsert[] = [];
   const evtDeletes: { event_id: string; student_id: string }[] = [];
 
+  // 出席入力ログ用：時限ごとに、この保存で対象になった学生全員（記号を
+  // 入力した学生・空欄に戻した学生の両方）のスナップショット材料を集める。
+  type PeriodLogEntry = {
+    studentId: string;
+    symbolId: string | null;
+    time: string | null;
+    reason: string | null;
+  };
+  const periodEntriesMap = new Map<number, PeriodLogEntry[]>();
+
   // att_/attTime_/attReason_ の各フィールドはname順に依存せず組み合わせる
   // 必要があるため、先に time/reason を `${periodNo}_${studentId}` 単位で集めておく。
   const timeByKey = new Map<string, string>();
@@ -95,18 +107,30 @@ export async function saveAttendance(formData: FormData) {
     if (attMatch) {
       const periodNo = Number(attMatch[1]);
       const studentId = attMatch[2];
+      const periodStudentKey = `${periodNo}_${studentId}`;
+      const time = timeByKey.get(periodStudentKey) ?? null;
+      const reason = reasonByKey.get(periodStudentKey) ?? null;
+
+      const periodEntries = periodEntriesMap.get(periodNo) ?? [];
+      periodEntries.push({
+        studentId,
+        symbolId: value === "" ? null : value,
+        time: value === "" ? null : time,
+        reason: value === "" ? null : reason,
+      });
+      periodEntriesMap.set(periodNo, periodEntries);
+
       if (value === "") {
         attDeletes.push({ student_id: studentId, period_no: periodNo });
       } else {
-        const periodStudentKey = `${periodNo}_${studentId}`;
         attUpserts.push({
           student_id: studentId,
           class_id: classId,
           date,
           period_no: periodNo,
           symbol_id: value,
-          time_value: timeByKey.get(periodStudentKey) ?? null,
-          reason: reasonByKey.get(periodStudentKey) ?? null,
+          time_value: time,
+          reason,
           recorded_by: staff.id,
         });
       }
@@ -183,6 +207,63 @@ export async function saveAttendance(formData: FormData) {
   const results = await Promise.all(upsertPromises);
   for (const { error } of results) {
     if (error) throw new Error(error.message);
+  }
+
+  // 出席入力ログ：時限単位の保存（att_P*フィールドを含む保存）ごとに、
+  // 上書きではなく新しい行として記録する。学校行事（evt_*）の保存は
+  // 時限の概念がないため対象外。
+  if (periodEntriesMap.size > 0) {
+    const allStudentIds = new Set<string>();
+    const allSymbolIds = new Set<string>();
+    for (const entries of periodEntriesMap.values()) {
+      for (const e of entries) {
+        allStudentIds.add(e.studentId);
+        if (e.symbolId) allSymbolIds.add(e.symbolId);
+      }
+    }
+
+    const [{ data: studentRows }, { data: symbolRows }] = await Promise.all([
+      allStudentIds.size > 0
+        ? supabase
+            .from("students")
+            .select("id, student_number, name")
+            .in("id", Array.from(allStudentIds))
+        : Promise.resolve({ data: [] as { id: string; student_number: string; name: string }[] }),
+      allSymbolIds.size > 0
+        ? supabase
+            .from("symbols")
+            .select("id, symbol_char, label")
+            .in("id", Array.from(allSymbolIds))
+        : Promise.resolve({ data: [] as { id: string; symbol_char: string; label: string }[] }),
+    ]);
+    const studentById = new Map((studentRows ?? []).map((s) => [s.id, s]));
+    const symbolById = new Map((symbolRows ?? []).map((s) => [s.id, s]));
+
+    const logRows = Array.from(periodEntriesMap.entries()).map(([periodNo, entries]) => ({
+      staff_id: staff.id,
+      staff_name: staff.name,
+      class_id: classId,
+      class_name: cls.name,
+      date,
+      period_no: periodNo,
+      entries: entries.map((e) => {
+        const student = studentById.get(e.studentId);
+        const symbol = e.symbolId ? symbolById.get(e.symbolId) : null;
+        return {
+          student_id: e.studentId,
+          student_number: student?.student_number ?? "",
+          student_name: student?.name ?? "",
+          symbol_id: e.symbolId,
+          symbol_char: symbol?.symbol_char ?? null,
+          symbol_label: symbol?.label ?? null,
+          time_value: e.time,
+          reason: e.reason,
+        };
+      }),
+    }));
+
+    const { error: logError } = await supabase.from("attendance_input_logs").insert(logRows);
+    if (logError) throw new Error(logError.message);
   }
 
   // この画面はcookies()（認証）に依存するため常に動的レンダリングであり、

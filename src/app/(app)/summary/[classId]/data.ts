@@ -18,6 +18,7 @@ export interface RosterStudent {
   name: string;
   furigana: string;
   nationality: string | null;
+  categoryName: string | null;
 }
 
 export interface ClassSummaryData {
@@ -79,11 +80,21 @@ export async function getClassSummaryData(
   const decimalDigits = termSettings?.percent_decimal_digits ?? 1;
 
   // このクラスに学期中一度でも所属した学生を対象にする（月別列は学期全体を表示するため）
-  let roster: RosterStudent[] = [];
+  type RosterRow = {
+    id: string;
+    student_number: string;
+    name: string;
+    furigana: string;
+    nationality: string | null;
+    category: { name: string } | null;
+  };
+  let roster: RosterRow[] = [];
   if (cls.type === "homeroom") {
     const { data } = await supabase
       .from("class_enrollments")
-      .select("student:students(id, student_number, name, furigana, nationality)")
+      .select(
+        "student:students(id, student_number, name, furigana, nationality, category:student_categories(name))",
+      )
       .eq("class_id", classId)
       .lte("valid_from", term.end_date)
       .or(`valid_to.is.null,valid_to.gte.${term.start_date}`);
@@ -93,7 +104,9 @@ export async function getClassSummaryData(
   } else {
     const { data } = await supabase
       .from("elective_memberships")
-      .select("student:students(id, student_number, name, furigana, nationality)")
+      .select(
+        "student:students(id, student_number, name, furigana, nationality, category:student_categories(name))",
+      )
       .eq("class_id", classId)
       .lte("valid_from", term.end_date)
       .or(`valid_to.is.null,valid_to.gte.${term.start_date}`);
@@ -102,7 +115,19 @@ export async function getClassSummaryData(
       .filter((s): s is NonNullable<typeof s> => !!s);
   }
   // 重複除去＋学籍番号順
-  const rosterMap = new Map(roster.map((s) => [s.id, s]));
+  const rosterMap = new Map<string, RosterStudent>(
+    roster.map((s) => [
+      s.id,
+      {
+        id: s.id,
+        student_number: s.student_number,
+        name: s.name,
+        furigana: s.furigana,
+        nationality: s.nationality,
+        categoryName: s.category?.name ?? null,
+      },
+    ]),
+  );
   const rosterList = Array.from(rosterMap.values()).sort((a, b) =>
     a.student_number.localeCompare(b.student_number, "ja"),
   );
@@ -249,6 +274,7 @@ export function buildColumnDefs(
 ): ColumnDef[] {
   const cols: ColumnDef[] = [
     { key: "nationality", label: "国籍", defaultOn: false },
+    { key: "student_category", label: "学生区分", defaultOn: false },
     { key: "cum_req_days", label: "累計要出席時数", defaultOn: false },
     { key: "cum_rate", label: "累計出席率", defaultOn: true },
     { key: "cum_raw_abs", label: "累計欠席時数", defaultOn: false },
@@ -299,6 +325,7 @@ export function getCellValue(
 ): string {
   if (!summary) return "";
   if (key === "nationality") return student.nationality ?? "";
+  if (key === "student_category") return student.categoryName ?? "";
   if (key === "cum_req_days") return String(summary.cumulative.reqDays);
   if (key === "cum_rate") return formatPercent(summary.cumulative.rate, decimalDigits);
   if (key === "cum_raw_abs") return String(summary.cumulative.rawAbsCount);

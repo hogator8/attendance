@@ -181,6 +181,7 @@ export async function savePermissions(formData: FormData) {
     can_manage_settings: formData.get("perm_can_manage_settings") === "on",
     can_view_individual_records:
       formData.get("perm_can_view_individual_records") === "on",
+    can_view_attendance_logs: formData.get("perm_can_view_attendance_logs") === "on",
   };
   const { error: permError } = await supabase
     .from("staff_permissions")
