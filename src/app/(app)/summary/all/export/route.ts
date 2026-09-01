@@ -43,12 +43,20 @@ export async function GET(request: NextRequest) {
   for (const student of data.rosterList) {
     const summary = data.summaryByStudent.get(student.id);
     const symbolCounts = data.symbolCountsByStudent.get(student.id);
+    const monthlySymbolCounts = data.monthlySymbolCountsByStudent.get(student.id);
     const row = [
       student.student_number,
       student.name,
       student.furigana,
       ...columns.map((c) =>
-        getAllStudentsCellValue(c.key, student, summary, symbolCounts, data.decimalDigits),
+        getAllStudentsCellValue(
+          c.key,
+          student,
+          summary,
+          symbolCounts,
+          monthlySymbolCounts,
+          data.decimalDigits,
+        ),
       ),
     ];
     sheet.addRow(row);
