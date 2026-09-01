@@ -38,8 +38,16 @@ export default async function AllStudentsSummaryPage({
   }
 
   const data = await getAllStudentsSummaryData(supabase, { from, to });
-  const { rosterList, summaryByStudent, symbolCountsByStudent, colorRules, decimalDigits, periodFrom, periodTo } =
-    data;
+  const {
+    rosterList,
+    summaryByStudent,
+    symbolCountsByStudent,
+    monthlySymbolCountsByStudent,
+    colorRules,
+    decimalDigits,
+    periodFrom,
+    periodTo,
+  } = data;
 
   const columnDefs = buildAllStudentsColumnDefs(data);
   const selectedColKeys = col ? (Array.isArray(col) ? col : [col]) : undefined;
@@ -134,6 +142,7 @@ export default async function AllStudentsSummaryPage({
               {rosterList.map((student) => {
                 const summary = summaryByStudent.get(student.id);
                 const symbolCounts = symbolCountsByStudent.get(student.id);
+                const monthlySymbolCounts = monthlySymbolCountsByStudent.get(student.id);
                 return (
                   <tr key={student.id}>
                     <td className={`${tdClass} sticky left-0 z-10 w-28 min-w-28 bg-white`}>
@@ -152,6 +161,7 @@ export default async function AllStudentsSummaryPage({
                         student,
                         summary,
                         symbolCounts,
+                        monthlySymbolCounts,
                         decimalDigits,
                       );
                       let color: string | null = null;

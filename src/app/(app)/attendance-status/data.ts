@@ -17,6 +17,15 @@ export interface MonthlyRow {
   label: string;
   reqDays: number;
   rate: number;
+  rawAbsCount: number;
+  lateCount: number;
+  earlyCount: number;
+  convertedAbsences: number;
+  totalAbsences: number;
+  excusedCount: number;
+  // 記号別の月別カウント（"記号：項目名"をキーにして所属学期を横断集計）。
+  // 過去データ（historical_monthly_summaries）は記号別の内訳を持たないため空。
+  symbolCountsByLabel: Map<string, number>;
   isHistorical: boolean;
 }
 
@@ -36,6 +45,9 @@ export interface StudentAttendanceStatus {
   dailyRecords: DailyRecord[];
   // 記号ごとの累計回数（"記号:項目名" をキーにして全所属学期を横断集計）
   symbolCountsByLabel: Map<string, number>;
+  // 学生が過去に所属した全学期に登録されている記号名（"記号：項目名"）の一覧。
+  // 出現回数が0の記号も列選択に出せるよう、カウントの有無に関わらず集める。
+  symbolLabels: string[];
 }
 
 // 学生1人分の、入学からの通算出席状況を計算する。
@@ -81,6 +93,7 @@ export async function getStudentAttendanceStatus(
   let totalExcused = 0;
   const monthlyRows: MonthlyRow[] = [];
   const symbolCountsByLabel = new Map<string, number>();
+  const symbolLabelSet = new Set<string>();
 
   for (const term of (terms ?? []) as Term[]) {
     const [{ data: symbolRows }, { data: conversionRule }] = await Promise.all([
@@ -96,6 +109,7 @@ export async function getStudentAttendanceStatus(
     const symbolLabelById = new Map(
       (symbolRows ?? []).map((s) => [s.id, `${s.symbol_char}：${s.label}`]),
     );
+    for (const label of symbolLabelById.values()) symbolLabelSet.add(label);
     const rule = {
       lateN: conversionRule?.late_n ?? 0,
       earlyN: conversionRule?.early_n ?? 0,
@@ -172,11 +186,23 @@ export async function getStudentAttendanceStatus(
     }
 
     for (const m of summary.months) {
+      const monthSymbolCountsByLabel = new Map<string, number>();
+      for (const [symbolId, count] of Object.entries(m.symbolCounts)) {
+        const label = symbolLabelById.get(symbolId) ?? symbolId;
+        monthSymbolCountsByLabel.set(label, (monthSymbolCountsByLabel.get(label) ?? 0) + count);
+      }
       monthlyRows.push({
         key: `${m.year}-${m.month}`,
         label: `${m.year}年${m.month}月`,
         reqDays: m.reqDays,
         rate: m.rate,
+        rawAbsCount: m.rawAbsCount,
+        lateCount: m.lateCount,
+        earlyCount: m.earlyCount,
+        convertedAbsences: m.convertedAbsences,
+        totalAbsences: m.totalAbsences,
+        excusedCount: m.excusedCount,
+        symbolCountsByLabel: monthSymbolCountsByLabel,
         isHistorical: false,
       });
     }
@@ -200,6 +226,16 @@ export async function getStudentAttendanceStatus(
       label: `${y}年${m}月（過去データ）`,
       reqDays: h.required_days,
       rate: h.required_days > 0 ? (h.required_days - h.absent_days) / h.required_days : 0,
+      rawAbsCount: h.absent_days,
+      lateCount: h.late_count,
+      earlyCount: h.early_leave_count,
+      // 過去データ（historical_monthly_summaries）は換算欠席数を別途持たず、
+      // 累計側と同様にabsent_daysをそのままtotalAbsencesとして扱う。
+      convertedAbsences: 0,
+      totalAbsences: h.absent_days,
+      excusedCount: h.excused_days,
+      // 過去データは記号別の内訳を持たないため空
+      symbolCountsByLabel: new Map(),
       isHistorical: true,
     });
   }
@@ -234,7 +270,13 @@ export async function getStudentAttendanceStatus(
     reason: r.reason,
   }));
 
-  return { cumulative, monthlyRows, dailyRecords, symbolCountsByLabel };
+  return {
+    cumulative,
+    monthlyRows,
+    dailyRecords,
+    symbolCountsByLabel,
+    symbolLabels: Array.from(symbolLabelSet.values()).sort((a, b) => a.localeCompare(b, "ja")),
+  };
 }
 
 export interface DetailColumnDef {
@@ -245,13 +287,23 @@ export interface DetailColumnDef {
 }
 
 // 集計ページの列選択テーブルと同じ発想で、この学生1名分の全項目を
-// キー・値のペアとして返す（「詳細」セクション用）。
+// キー・値のペアとして返す（「詳細」セクション用）。学生本人の属性
+// （国籍・学生区分）は、集計画面と同じデータソース（students.nationality・
+// students.category_id）を呼び出し側（page.tsx）で解決して渡してもらう。
 export function buildDetailColumns(
   status: StudentAttendanceStatus,
   decimalDigits: number,
+  attributes: { nationality: string | null; categoryName: string | null },
 ): DetailColumnDef[] {
   const c = status.cumulative;
   const cols: DetailColumnDef[] = [
+    { key: "nationality", label: "国籍", value: attributes.nationality ?? "", defaultOn: false },
+    {
+      key: "student_category",
+      label: "学生区分",
+      value: attributes.categoryName ?? "",
+      defaultOn: false,
+    },
     { key: "cum_req_days", label: "累計要出席時数", value: String(c.reqDays), defaultOn: false },
     {
       key: "cum_rate",
@@ -276,7 +328,10 @@ export function buildDetailColumns(
     },
     { key: "cum_excused", label: "累計公欠時数", value: String(c.excusedCount), defaultOn: false },
   ];
-  for (const [label, count] of status.symbolCountsByLabel.entries()) {
+  // 出現回数0の記号も選択肢に出すため、symbolCountsByLabelではなく
+  // symbolLabels（所属学期に登録されている記号名の全量）を基準にループする。
+  for (const label of status.symbolLabels) {
+    const count = status.symbolCountsByLabel.get(label) ?? 0;
     cols.push({ key: `symbol_${label}`, label: `累計${label}`, value: String(count), defaultOn: false });
   }
   for (const m of status.monthlyRows) {
@@ -292,6 +347,55 @@ export function buildDetailColumns(
       value: formatPercent(m.rate, decimalDigits),
       defaultOn: true,
     });
+    cols.push({
+      key: `month_${m.key}_raw_abs`,
+      label: `${m.label}　欠席時数`,
+      value: String(m.rawAbsCount),
+      defaultOn: false,
+    });
+    cols.push({
+      key: `month_${m.key}_late`,
+      label: `${m.label}　遅刻回数`,
+      value: String(m.lateCount),
+      defaultOn: false,
+    });
+    cols.push({
+      key: `month_${m.key}_early`,
+      label: `${m.label}　早退回数`,
+      value: String(m.earlyCount),
+      defaultOn: false,
+    });
+    cols.push({
+      key: `month_${m.key}_converted_abs`,
+      label: `${m.label}　換算欠席時数`,
+      value: String(m.convertedAbsences),
+      defaultOn: false,
+    });
+    cols.push({
+      key: `month_${m.key}_total_abs`,
+      label: `${m.label}　合計欠席時数`,
+      value: String(m.totalAbsences),
+      defaultOn: false,
+    });
+    cols.push({
+      key: `month_${m.key}_excused`,
+      label: `${m.label}　公欠時数`,
+      value: String(m.excusedCount),
+      defaultOn: false,
+    });
+    // 過去データ（historical_monthly_summaries）の月は記号別の内訳を
+    // 持たないため、記号別の月別列は通常学期分の月にのみ追加する。
+    if (!m.isHistorical) {
+      for (const label of status.symbolLabels) {
+        const count = m.symbolCountsByLabel.get(label) ?? 0;
+        cols.push({
+          key: `month_${m.key}_symbol_${label}`,
+          label: `${m.label}　${label}`,
+          value: String(count),
+          defaultOn: false,
+        });
+      }
+    }
   }
   return cols;
 }

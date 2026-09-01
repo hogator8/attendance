@@ -292,16 +292,22 @@ export function buildColumnDefs(
     });
   }
   for (const m of months) {
-    cols.push({
-      key: `month_${m.year}_${m.month}_req`,
-      label: `${m.label}要出席時数`,
-      defaultOn: false,
-    });
-    cols.push({
-      key: `month_${m.year}_${m.month}_rate`,
-      label: `${m.label}出席率`,
-      defaultOn: true,
-    });
+    const prefix = `month_${m.year}_${m.month}`;
+    cols.push({ key: `${prefix}_req`, label: `${m.label}要出席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_rate`, label: `${m.label}出席率`, defaultOn: true });
+    cols.push({ key: `${prefix}_raw_abs`, label: `${m.label}欠席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_late`, label: `${m.label}遅刻回数`, defaultOn: false });
+    cols.push({ key: `${prefix}_early`, label: `${m.label}早退回数`, defaultOn: false });
+    cols.push({ key: `${prefix}_converted_abs`, label: `${m.label}換算欠席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_total_abs`, label: `${m.label}合計欠席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_excused`, label: `${m.label}公欠時数`, defaultOn: false });
+    for (const s of symbolRows) {
+      cols.push({
+        key: `${prefix}_symbol_${s.id}`,
+        label: `${m.label}${s.symbol_char}（${s.label}）`,
+        defaultOn: false,
+      });
+    }
   }
   return cols;
 }
@@ -340,16 +346,45 @@ export function getCellValue(
     return String(summary.cumulative.symbolCounts[symbolId] ?? 0);
   }
 
-  const monthMatch = key.match(/^month_(\d+)_(\d+)_(req|rate)$/);
+  const monthSymbolMatch = key.match(/^month_(\d+)_(\d+)_symbol_(.+)$/);
+  if (monthSymbolMatch) {
+    const year = Number(monthSymbolMatch[1]);
+    const month = Number(monthSymbolMatch[2]);
+    const symbolId = monthSymbolMatch[3];
+    const monthSummary = summary.months.find((m) => m.year === year && m.month === month);
+    if (!monthSummary) return "";
+    return String(monthSummary.symbolCounts[symbolId] ?? 0);
+  }
+
+  const monthMatch = key.match(
+    /^month_(\d+)_(\d+)_(req|rate|raw_abs|late|early|converted_abs|total_abs|excused)$/,
+  );
   if (monthMatch) {
     const year = Number(monthMatch[1]);
     const month = Number(monthMatch[2]);
     const field = monthMatch[3];
     const monthSummary = summary.months.find((m) => m.year === year && m.month === month);
     if (!monthSummary) return "";
-    return field === "req"
-      ? String(monthSummary.reqDays)
-      : formatPercent(monthSummary.rate, decimalDigits);
+    switch (field) {
+      case "req":
+        return String(monthSummary.reqDays);
+      case "rate":
+        return formatPercent(monthSummary.rate, decimalDigits);
+      case "raw_abs":
+        return String(monthSummary.rawAbsCount);
+      case "late":
+        return String(monthSummary.lateCount);
+      case "early":
+        return String(monthSummary.earlyCount);
+      case "converted_abs":
+        return String(monthSummary.convertedAbsences);
+      case "total_abs":
+        return String(monthSummary.totalAbsences);
+      case "excused":
+        return String(monthSummary.excusedCount);
+      default:
+        return "";
+    }
   }
 
   return "";

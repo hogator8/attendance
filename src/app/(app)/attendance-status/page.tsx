@@ -30,13 +30,18 @@ export default async function AttendanceStatusPage({
   const { data: student } = studentId
     ? await supabase
         .from("students")
-        .select("*")
+        .select("*, category:student_categories(name)")
         .eq("id", studentId)
         .maybeSingle()
     : { data: null };
 
   const status = student ? await getStudentAttendanceStatus(supabase, student.id) : null;
-  const detailColumnDefs = status ? buildDetailColumns(status, 1) : [];
+  const detailColumnDefs = status
+    ? buildDetailColumns(status, 1, {
+        nationality: student!.nationality,
+        categoryName: student!.category?.name ?? null,
+      })
+    : [];
   const selectedColKeys = col ? (Array.isArray(col) ? col : [col]) : undefined;
   const detailColumns = resolveDetailColumns(
     detailColumnDefs,

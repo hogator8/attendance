@@ -30,6 +30,10 @@ export interface AllStudentsSummaryData {
   symbolLabels: string[];
   summaryByStudent: Map<string, StudentSummary>;
   symbolCountsByStudent: Map<string, Map<string, number>>;
+  // 月別・記号別の内訳（studentId -> "年-月" -> 記号名 -> 件数）。
+  // symbolCountsByStudentと同様、記号IDは学期をまたいで変わりうるため
+  // "記号：項目名"のラベルをキーにして横断集計する。
+  monthlySymbolCountsByStudent: Map<string, Map<string, Map<string, number>>>;
   periodFrom: string;
   periodTo: string;
 }
@@ -93,6 +97,9 @@ export async function getAllStudentsSummaryData(
   );
   const symbolCountsByStudent = new Map<string, Map<string, number>>(
     studentIds.map((id) => [id, new Map<string, number>()]),
+  );
+  const monthlySymbolCountsByStudent = new Map<string, Map<string, Map<string, number>>>(
+    studentIds.map((id) => [id, new Map<string, Map<string, number>>()]),
   );
   const monthMap = new Map<string, MonthBucket>();
   const symbolLabelSet = new Set<string>();
@@ -214,6 +221,18 @@ export async function getAllStudentsSummaryData(
         const label = symbolLabelById.get(symbolId) ?? symbolId;
         counts.set(label, (counts.get(label) ?? 0) + count);
       }
+
+      const monthlyCounts = monthlySymbolCountsByStudent.get(s.studentId)!;
+      for (const m of s.months) {
+        const monthKey = `${m.year}-${m.month}`;
+        const countsForMonth = monthlyCounts.get(monthKey) ?? new Map<string, number>();
+        for (const [symbolId, count] of Object.entries(m.symbolCounts)) {
+          if (count === 0) continue;
+          const label = symbolLabelById.get(symbolId) ?? symbolId;
+          countsForMonth.set(label, (countsForMonth.get(label) ?? 0) + count);
+        }
+        monthlyCounts.set(monthKey, countsForMonth);
+      }
     }
   }
 
@@ -257,6 +276,7 @@ export async function getAllStudentsSummaryData(
     symbolLabels: Array.from(symbolLabelSet.values()).sort((a, b) => a.localeCompare(b, "ja")),
     summaryByStudent,
     symbolCountsByStudent,
+    monthlySymbolCountsByStudent,
     periodFrom: overallPeriodFrom ?? range.from ?? today,
     periodTo: overallPeriodTo ?? range.to ?? today,
   };
@@ -285,16 +305,18 @@ export function buildAllStudentsColumnDefs(data: AllStudentsSummaryData): Column
     cols.push({ key: `symbol_${label}`, label: `累計${label}`, defaultOn: false });
   }
   for (const m of data.months) {
-    cols.push({
-      key: `month_${m.year}_${m.month}_req`,
-      label: `${m.label}要出席時数`,
-      defaultOn: false,
-    });
-    cols.push({
-      key: `month_${m.year}_${m.month}_rate`,
-      label: `${m.label}出席率`,
-      defaultOn: true,
-    });
+    const prefix = `month_${m.year}_${m.month}`;
+    cols.push({ key: `${prefix}_req`, label: `${m.label}要出席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_rate`, label: `${m.label}出席率`, defaultOn: true });
+    cols.push({ key: `${prefix}_raw_abs`, label: `${m.label}欠席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_late`, label: `${m.label}遅刻回数`, defaultOn: false });
+    cols.push({ key: `${prefix}_early`, label: `${m.label}早退回数`, defaultOn: false });
+    cols.push({ key: `${prefix}_converted_abs`, label: `${m.label}換算欠席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_total_abs`, label: `${m.label}合計欠席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_excused`, label: `${m.label}公欠時数`, defaultOn: false });
+    for (const label of data.symbolLabels) {
+      cols.push({ key: `${prefix}_symbol_${label}`, label: `${m.label}${label}`, defaultOn: false });
+    }
   }
   return cols;
 }
@@ -315,6 +337,7 @@ export function getAllStudentsCellValue(
   student: RosterStudent,
   summary: StudentSummary | undefined,
   symbolCounts: Map<string, number> | undefined,
+  monthlySymbolCounts: Map<string, Map<string, number>> | undefined,
   decimalDigits: number,
 ): string {
   if (key === "nationality") return student.nationality ?? "";
@@ -334,16 +357,44 @@ export function getAllStudentsCellValue(
     return String(symbolCounts?.get(label) ?? 0);
   }
 
-  const monthMatch = key.match(/^month_(\d+)_(\d+)_(req|rate)$/);
+  const monthSymbolMatch = key.match(/^month_(\d+)_(\d+)_symbol_(.+)$/);
+  if (monthSymbolMatch) {
+    const year = monthSymbolMatch[1];
+    const month = monthSymbolMatch[2];
+    const label = monthSymbolMatch[3];
+    const countsForMonth = monthlySymbolCounts?.get(`${year}-${month}`);
+    return String(countsForMonth?.get(label) ?? 0);
+  }
+
+  const monthMatch = key.match(
+    /^month_(\d+)_(\d+)_(req|rate|raw_abs|late|early|converted_abs|total_abs|excused)$/,
+  );
   if (monthMatch) {
     const year = Number(monthMatch[1]);
     const month = Number(monthMatch[2]);
     const field = monthMatch[3];
     const monthSummary = summary.months.find((m) => m.year === year && m.month === month);
     if (!monthSummary) return "";
-    return field === "req"
-      ? String(monthSummary.reqDays)
-      : formatPercent(monthSummary.rate, decimalDigits);
+    switch (field) {
+      case "req":
+        return String(monthSummary.reqDays);
+      case "rate":
+        return formatPercent(monthSummary.rate, decimalDigits);
+      case "raw_abs":
+        return String(monthSummary.rawAbsCount);
+      case "late":
+        return String(monthSummary.lateCount);
+      case "early":
+        return String(monthSummary.earlyCount);
+      case "converted_abs":
+        return String(monthSummary.convertedAbsences);
+      case "total_abs":
+        return String(monthSummary.totalAbsences);
+      case "excused":
+        return String(monthSummary.excusedCount);
+      default:
+        return "";
+    }
   }
 
   return "";
