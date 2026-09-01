@@ -58,6 +58,20 @@ test("指示書7.1の例：要出席4（出席1+遅刻3）、遅刻3回・lateN=
   assert.equal(result.rate, 0.75);
 });
 
+test("attendedCount: category=attendance の記号のみを合算する", () => {
+  const records = [
+    { symbolId: "present", weight: 5 },
+    { symbolId: "absent", weight: 2 },
+    { symbolId: "late", weight: 1 },
+  ];
+  const result = calculateAttendanceRate(records, symbols, {
+    lateN: 0,
+    earlyN: 0,
+    combinedN: 0,
+  });
+  assert.equal(result.attendedCount, 5);
+});
+
 test("欠席の生カウントに換算欠席が加算される", () => {
   const records = [
     { symbolId: "present", weight: 6 },

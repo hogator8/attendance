@@ -25,6 +25,8 @@ export interface ConversionRule {
 
 export interface AttendanceRateResult {
   reqDays: number;
+  /** category='attendance'（出席）記号の合計weight */
+  attendedCount: number;
   rawAbsCount: number;
   lateCount: number;
   earlyCount: number;
@@ -75,6 +77,7 @@ export function calculateAttendanceRate(
   );
 
   let reqDays = 0;
+  let attendedCount = 0;
   let rawAbsCount = 0;
   let lateCount = 0;
   let earlyCount = 0;
@@ -90,6 +93,9 @@ export function calculateAttendanceRate(
 
     if (symbol.countsAsRequired) {
       reqDays += record.weight;
+    }
+    if (symbol.category === "attendance") {
+      attendedCount += record.weight;
     }
     if (symbol.category === "absence") {
       rawAbsCount += record.weight;
@@ -117,6 +123,7 @@ export function calculateAttendanceRate(
 
   return {
     reqDays,
+    attendedCount,
     rawAbsCount,
     lateCount,
     earlyCount,
