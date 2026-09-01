@@ -199,7 +199,7 @@ export async function getClassSummaryData(
       ? await supabase
           .from("historical_monthly_summaries")
           .select(
-            "student_id, required_days, absent_days, late_count, early_leave_count, excused_days",
+            "student_id, required_days, attended_days, absent_days, late_count, early_leave_count, excused_days",
           )
           .in("student_id", studentIds)
       : { data: [] };
@@ -207,6 +207,7 @@ export async function getClassSummaryData(
     string,
     {
       requiredDays: number;
+      attendedDays: number;
       absentDays: number;
       lateCount: number;
       earlyCount: number;
@@ -216,12 +217,14 @@ export async function getClassSummaryData(
   for (const r of historicalRows ?? []) {
     const acc = historicalByStudent.get(r.student_id) ?? {
       requiredDays: 0,
+      attendedDays: 0,
       absentDays: 0,
       lateCount: 0,
       earlyCount: 0,
       excusedDays: 0,
     };
     acc.requiredDays += r.required_days;
+    acc.attendedDays += r.attended_days;
     acc.absentDays += r.absent_days;
     acc.lateCount += r.late_count;
     acc.earlyCount += r.early_leave_count;
@@ -238,6 +241,7 @@ export async function getClassSummaryData(
       ...summary.cumulative,
       reqDays,
       totalAbsences,
+      attendedCount: summary.cumulative.attendedCount + historical.attendedDays,
       lateCount: summary.cumulative.lateCount + historical.lateCount,
       earlyCount: summary.cumulative.earlyCount + historical.earlyCount,
       excusedCount: summary.cumulative.excusedCount + historical.excusedDays,
@@ -276,6 +280,7 @@ export function buildColumnDefs(
     { key: "nationality", label: "国籍", defaultOn: false },
     { key: "student_category", label: "学生区分", defaultOn: false },
     { key: "cum_req_days", label: "累計要出席時数", defaultOn: false },
+    { key: "cum_attended", label: "累計出席時数", defaultOn: false },
     { key: "cum_rate", label: "累計出席率", defaultOn: true },
     { key: "cum_raw_abs", label: "累計欠席時数", defaultOn: false },
     { key: "cum_late", label: "累計遅刻回数", defaultOn: false },
@@ -294,6 +299,7 @@ export function buildColumnDefs(
   for (const m of months) {
     const prefix = `month_${m.year}_${m.month}`;
     cols.push({ key: `${prefix}_req`, label: `${m.label}要出席時数`, defaultOn: false });
+    cols.push({ key: `${prefix}_attended`, label: `${m.label}出席時数`, defaultOn: false });
     cols.push({ key: `${prefix}_rate`, label: `${m.label}出席率`, defaultOn: true });
     cols.push({ key: `${prefix}_raw_abs`, label: `${m.label}欠席時数`, defaultOn: false });
     cols.push({ key: `${prefix}_late`, label: `${m.label}遅刻回数`, defaultOn: false });
@@ -333,6 +339,7 @@ export function getCellValue(
   if (key === "nationality") return student.nationality ?? "";
   if (key === "student_category") return student.categoryName ?? "";
   if (key === "cum_req_days") return String(summary.cumulative.reqDays);
+  if (key === "cum_attended") return String(summary.cumulative.attendedCount);
   if (key === "cum_rate") return formatPercent(summary.cumulative.rate, decimalDigits);
   if (key === "cum_raw_abs") return String(summary.cumulative.rawAbsCount);
   if (key === "cum_late") return String(summary.cumulative.lateCount);
@@ -357,7 +364,7 @@ export function getCellValue(
   }
 
   const monthMatch = key.match(
-    /^month_(\d+)_(\d+)_(req|rate|raw_abs|late|early|converted_abs|total_abs|excused)$/,
+    /^month_(\d+)_(\d+)_(req|attended|rate|raw_abs|late|early|converted_abs|total_abs|excused)$/,
   );
   if (monthMatch) {
     const year = Number(monthMatch[1]);
@@ -368,6 +375,8 @@ export function getCellValue(
     switch (field) {
       case "req":
         return String(monthSummary.reqDays);
+      case "attended":
+        return String(monthSummary.attendedCount);
       case "rate":
         return formatPercent(monthSummary.rate, decimalDigits);
       case "raw_abs":

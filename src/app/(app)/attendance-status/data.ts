@@ -16,6 +16,7 @@ export interface MonthlyRow {
   key: string;
   label: string;
   reqDays: number;
+  attendedCount: number;
   rate: number;
   rawAbsCount: number;
   lateCount: number;
@@ -85,6 +86,7 @@ export async function getStudentAttendanceStatus(
       : { data: [] };
 
   let totalReqDays = 0;
+  let totalAttended = 0;
   let totalRawAbs = 0;
   let totalLate = 0;
   let totalEarly = 0;
@@ -172,6 +174,7 @@ export async function getStudentAttendanceStatus(
     );
 
     totalReqDays += summary.cumulative.reqDays;
+    totalAttended += summary.cumulative.attendedCount;
     totalRawAbs += summary.cumulative.rawAbsCount;
     totalLate += summary.cumulative.lateCount;
     totalEarly += summary.cumulative.earlyCount;
@@ -195,6 +198,7 @@ export async function getStudentAttendanceStatus(
         key: `${m.year}-${m.month}`,
         label: `${m.year}年${m.month}月`,
         reqDays: m.reqDays,
+        attendedCount: m.attendedCount,
         rate: m.rate,
         rawAbsCount: m.rawAbsCount,
         lateCount: m.lateCount,
@@ -215,6 +219,7 @@ export async function getStudentAttendanceStatus(
     .order("year_month");
   for (const h of historicalRows ?? []) {
     totalReqDays += h.required_days;
+    totalAttended += h.attended_days;
     totalRawAbs += h.absent_days;
     totalLate += h.late_count;
     totalEarly += h.early_leave_count;
@@ -225,6 +230,7 @@ export async function getStudentAttendanceStatus(
       key: `${y}-${m}-historical`,
       label: `${y}年${m}月（過去データ）`,
       reqDays: h.required_days,
+      attendedCount: h.attended_days,
       rate: h.required_days > 0 ? (h.required_days - h.absent_days) / h.required_days : 0,
       rawAbsCount: h.absent_days,
       lateCount: h.late_count,
@@ -244,6 +250,7 @@ export async function getStudentAttendanceStatus(
 
   const cumulative: AttendanceRateResult = {
     reqDays: totalReqDays,
+    attendedCount: totalAttended,
     rawAbsCount: totalRawAbs,
     lateCount: totalLate,
     earlyCount: totalEarly,
@@ -306,6 +313,12 @@ export function buildDetailColumns(
     },
     { key: "cum_req_days", label: "累計要出席時数", value: String(c.reqDays), defaultOn: false },
     {
+      key: "cum_attended",
+      label: "累計出席時数",
+      value: String(c.attendedCount),
+      defaultOn: false,
+    },
+    {
       key: "cum_rate",
       label: "累計出席率",
       value: formatPercent(c.rate, decimalDigits),
@@ -339,6 +352,12 @@ export function buildDetailColumns(
       key: `month_${m.key}_req`,
       label: `${m.label}　要出席時数`,
       value: String(m.reqDays),
+      defaultOn: false,
+    });
+    cols.push({
+      key: `month_${m.key}_attended`,
+      label: `${m.label}　出席時数`,
+      value: String(m.attendedCount),
       defaultOn: false,
     });
     cols.push({
