@@ -40,3 +40,15 @@ export async function uploadStudentPhoto(
   // キャッシュ回避のためタイムスタンプを付与
   return `${data.publicUrl}?t=${Date.now()}`;
 }
+
+// 学生写真を削除する（未登録の状態に戻す）。photo_url側のnull更新は
+// 呼び出し側（Server Action）の責務とし、ここではStorageオブジェクトの
+// 削除のみを行う。
+export async function deleteStudentPhotoFile(
+  supabase: Client,
+  studentId: string,
+): Promise<void> {
+  const path = `${studentId}/photo.jpg`;
+  const { error } = await supabase.storage.from(BUCKET).remove([path]);
+  if (error) throw new Error(`写真の削除に失敗しました: ${error.message}`);
+}
