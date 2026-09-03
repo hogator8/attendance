@@ -7,9 +7,11 @@ import { getActiveTerms } from "@/lib/terms";
 import { todayISO } from "@/lib/date";
 import SubmitForm from "@/components/SubmitForm";
 import FileInputButton from "@/components/FileInputButton";
+import ConfirmSubmitButton from "@/components/ConfirmSubmitButton";
 import {
   updateStudentInfo,
   updateStudentStatus,
+  deleteStudentPhoto,
   assignHomeroom,
   endHomeroomEnrollment,
   editHomeroomEnrollment,
@@ -233,6 +235,22 @@ export default async function StudentDetailPage({
               </button>
             </div>
           </SubmitForm>
+
+          {student.photo_url && (
+            <SubmitForm
+              action={deleteStudentPhoto}
+              successMessage="写真を削除しました"
+              className="mt-3"
+            >
+              <input type="hidden" name="student_id" value={student.id} />
+              <ConfirmSubmitButton
+                confirmMessage="写真を削除しますか？"
+                className={buttonDangerClass}
+              >
+                写真を削除
+              </ConfirmSubmitButton>
+            </SubmitForm>
+          )}
         </div>
 
         <div className={`${cardClass} max-w-md flex-1`}>

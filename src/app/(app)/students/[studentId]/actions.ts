@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { uploadStudentPhoto } from "@/lib/storage";
+import { uploadStudentPhoto, deleteStudentPhotoFile } from "@/lib/storage";
 import { addDays, todayISO } from "@/lib/date";
 import type { StudentStatus } from "@/lib/supabase/database.types";
 
@@ -52,6 +52,27 @@ export async function updateStudentInfo(formData: FormData) {
       .update({ photo_url: photoUrl })
       .eq("id", studentId);
   }
+
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
+}
+
+// 学生の写真を削除し、未登録の状態に戻す。Storage上のファイルも削除し、
+// 孤立したファイルが残らないようにする。
+export async function deleteStudentPhoto(formData: FormData) {
+  await requirePermission("can_manage_students");
+  const supabase = await createClient();
+
+  const studentId = String(formData.get("student_id") ?? "");
+  if (!studentId) throw new Error("学生IDが不正です。");
+
+  await deleteStudentPhotoFile(supabase, studentId);
+
+  const { error } = await supabase
+    .from("students")
+    .update({ photo_url: null })
+    .eq("id", studentId);
+  if (error) throw new Error(error.message);
 
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/students");
