@@ -585,6 +585,15 @@ export default async function StudentDetailPage({
               </select>
             </div>
             <div className="flex flex-col gap-1">
+              <label className={labelClass}>出席番号</label>
+              <input
+                type="number"
+                name="seq_no"
+                min={1}
+                className={`${inputClass} w-20`}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
               <label className={labelClass}>開始日</label>
               <input
                 type="date"
@@ -624,7 +633,8 @@ export default async function StudentDetailPage({
               <div key={m.id} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>
-                    {m.class?.name}　{m.valid_from} 〜 {m.valid_to ?? "現在"}
+                    {m.class?.name}（出席番号：{m.seq_no ?? "-"}）　{m.valid_from} 〜{" "}
+                    {m.valid_to ?? "現在"}
                   </span>
                   <div className="flex gap-3 text-xs">
                     <details>
@@ -652,6 +662,16 @@ export default async function StudentDetailPage({
                               </option>
                             ))}
                           </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className={labelClass}>出席番号</label>
+                          <input
+                            type="number"
+                            name="seq_no"
+                            min={1}
+                            defaultValue={m.seq_no ?? ""}
+                            className={inputClass}
+                          />
                         </div>
                         <div className="flex flex-col gap-1">
                           <label className={labelClass}>開始日</label>

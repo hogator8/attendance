@@ -347,6 +347,8 @@ export async function assignElective(formData: FormData) {
   const classId = String(formData.get("class_id") ?? "");
   const validFrom = String(formData.get("valid_from") ?? "");
   const validTo = String(formData.get("valid_to") ?? "").trim();
+  const seqNoRaw = String(formData.get("seq_no") ?? "");
+  const seqNo = seqNoRaw ? Number(seqNoRaw) : null;
 
   if (!studentId || !classId || !validFrom) {
     throw new Error("選択科目・開始日を入力してください。");
@@ -358,6 +360,7 @@ export async function assignElective(formData: FormData) {
   const { error } = await supabase.from("elective_memberships").insert({
     student_id: studentId,
     class_id: classId,
+    seq_no: seqNo,
     valid_from: validFrom,
     valid_to: validTo || null,
   });
@@ -399,6 +402,8 @@ export async function editElective(formData: FormData) {
   const classId = String(formData.get("class_id") ?? "");
   const validFrom = String(formData.get("valid_from") ?? "");
   const validTo = String(formData.get("valid_to") ?? "").trim();
+  const seqNoRaw = String(formData.get("seq_no") ?? "");
+  const seqNo = seqNoRaw ? Number(seqNoRaw) : null;
   const attendanceHandling = String(formData.get("attendance_handling") ?? "keep");
 
   if (!membershipId || !studentId || !classId || !validFrom) {
@@ -424,6 +429,7 @@ export async function editElective(formData: FormData) {
     .from("elective_memberships")
     .update({
       class_id: classId,
+      seq_no: seqNo,
       valid_from: validFrom,
       valid_to: validTo || null,
     })

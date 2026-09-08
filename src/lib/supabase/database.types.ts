@@ -224,6 +224,7 @@ export interface Database {
           id: string;
           student_id: string;
           class_id: string;
+          seq_no: number | null;
           valid_from: string;
           valid_to: string | null;
           created_at: string;
@@ -232,6 +233,7 @@ export interface Database {
           id?: string;
           student_id: string;
           class_id: string;
+          seq_no?: number | null;
           valid_from: string;
           valid_to?: string | null;
           created_at?: string;
