@@ -9,6 +9,21 @@ export interface RosterEntry {
   seqNo: number | null;
 }
 
+// 出席番号（seq_no）が設定されている学生を出席番号順で先に、seq_noがnullの
+// 学生を学籍番号順でその後ろに並べる。ホームルーム・選択科目で共通の並び順
+// ロジック。seq_noを0や無限大に置き換えて単純にソートすると、null=0扱いに
+// なる場合に本来後方に来るべき学生が先頭に来てしまうため、明示的に2グループ
+// に分けてそれぞれ別の基準でソートする。
+export function sortRosterEntries(entries: RosterEntry[]): RosterEntry[] {
+  const withSeqNo = entries
+    .filter((e) => e.seqNo !== null)
+    .sort((a, b) => a.seqNo! - b.seqNo!);
+  const withoutSeqNo = entries
+    .filter((e) => e.seqNo === null)
+    .sort((a, b) => a.student.student_number.localeCompare(b.student.student_number));
+  return [...withSeqNo, ...withoutSeqNo];
+}
+
 // 指定日時点で class_id（ホームルーム）に所属している学生一覧を返す。
 // includeWithdrawn=false の場合、status='withdrawn' の学生はデフォルトで除外する。
 export async function getHomeroomRoster(
@@ -26,13 +41,13 @@ export async function getHomeroomRoster(
 
   if (error) throw error;
 
-  return (data ?? [])
+  const entries = (data ?? [])
     .filter((row) => row.student)
     .filter(
       (row) => includeWithdrawn || row.student!.status !== "withdrawn",
     )
-    .map((row) => ({ student: row.student as Student, seqNo: row.seq_no }))
-    .sort((a, b) => (a.seqNo ?? 0) - (b.seqNo ?? 0));
+    .map((row) => ({ student: row.student as Student, seqNo: row.seq_no }));
+  return sortRosterEntries(entries);
 }
 
 // 指定日時点で選択科目 class_id に所属している学生一覧を返す。
@@ -44,20 +59,20 @@ export async function getElectiveRoster(
 ): Promise<RosterEntry[]> {
   const { data, error } = await supabase
     .from("elective_memberships")
-    .select("valid_from, valid_to, student:students(*)")
+    .select("seq_no, valid_from, valid_to, student:students(*)")
     .eq("class_id", classId)
     .lte("valid_from", date)
     .or(`valid_to.is.null,valid_to.gte.${date}`);
 
   if (error) throw error;
 
-  return (data ?? [])
+  const entries = (data ?? [])
     .filter((row) => row.student)
     .filter(
       (row) => includeWithdrawn || row.student!.status !== "withdrawn",
     )
-    .map((row) => ({ student: row.student as Student, seqNo: null }))
-    .sort((a, b) => a.student.name.localeCompare(b.student.name, "ja"));
+    .map((row) => ({ student: row.student as Student, seqNo: row.seq_no }));
+  return sortRosterEntries(entries);
 }
 
 export interface ElectiveOverlapInfo {
