@@ -6,7 +6,9 @@ import {
   getInputAccessibleClasses,
   getSummaryAccessibleClasses,
 } from "@/lib/permissions";
+import { isClassAttendanceComplete } from "@/lib/attendance/completion";
 import { todayISO, formatDateLabel } from "@/lib/date";
+import CompletionCheckIcon from "@/components/CompletionCheckIcon";
 
 export default async function HomePage() {
   const staff = await requireStaff();
@@ -44,6 +46,18 @@ export default async function HomePage() {
       .map((c) => c.id),
   );
 
+  // 「今日の出席入力」への導線があるクラス（inputClasses）についてのみ、
+  // 今日1日分の入力完了状況をまとめて判定する（クラスごとに個別の
+  // ロスター取得・出席記録クエリは発生するが、学生単位の個別クエリには
+  // ならないようPromise.allで並行実行する）。
+  const completionEntries = await Promise.all(
+    inputClasses.map(
+      async (c) =>
+        [c.id, await isClassAttendanceComplete(supabase, c, today)] as const,
+    ),
+  );
+  const completionByClassId = new Map(completionEntries);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -77,9 +91,17 @@ export default async function HomePage() {
                   className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-4"
                 >
                   <div>
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-                      {cls.type === "homeroom" ? "ホームルーム" : "選択科目"}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                        {cls.type === "homeroom" ? "ホームルーム" : "選択科目"}
+                      </span>
+                      {completionByClassId.get(cls.id) && (
+                        <CompletionCheckIcon
+                          className="h-4 w-4"
+                          title="今日の出席入力は完了しています"
+                        />
+                      )}
+                    </div>
                     <p className="mt-1 font-medium text-slate-900">
                       {cls.name}
                       {terms.length > 1 && (
