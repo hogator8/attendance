@@ -5,12 +5,15 @@ import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { canInputClass } from "@/lib/permissions";
 import { getHomeroomRoster, getElectiveRoster, getElectiveOverlapForSlots } from "@/lib/roster";
+import { computeCompletion } from "@/lib/attendance/completion";
 import { todayISO, dayOfWeekOf, formatDateLabel, addDays } from "@/lib/date";
 import { saveAttendance } from "./actions";
 import BulkFillButton from "./BulkFillButton";
 import AttendanceSymbolCell from "./AttendanceSymbolCell";
+import AttendanceDateNav from "./AttendanceDateNav";
 import SubmitForm from "@/components/SubmitForm";
-import { inputClass, buttonPrimaryClass, buttonSecondaryClass, cardClass } from "@/lib/ui";
+import CompletionCheckIcon from "@/components/CompletionCheckIcon";
+import { inputClass, buttonPrimaryClass, cardClass } from "@/lib/ui";
 
 export default async function AttendanceInputPage({
   params,
@@ -46,39 +49,42 @@ export default async function AttendanceInputPage({
 
   const prevDate = addDays(date, -1);
   const nextDate = addDays(date, 1);
+  const className = cls.name;
 
-  const dateNav = (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
-      <div>
-        <p className="text-xs font-medium text-slate-400">出席入力</p>
-        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{cls.name}</h1>
-        <p className="mt-1 text-lg font-bold text-blue-700 sm:text-xl">
-          {formatDateLabel(date)}
-        </p>
+  function renderDateNav(dayComplete: boolean) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
+        <div>
+          <p className="text-xs font-medium text-slate-400">出席入力</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{className}</h1>
+            {dayComplete && (
+              <CompletionCheckIcon
+                className="h-6 w-6"
+                title="この日の出席入力は完了しています"
+              />
+            )}
+          </div>
+          <p className="mt-1 text-lg font-bold text-blue-700 sm:text-xl">
+            {formatDateLabel(date)}
+          </p>
+        </div>
+        <AttendanceDateNav
+          classId={classId}
+          date={date}
+          prevDate={prevDate}
+          nextDate={nextDate}
+        />
       </div>
-      <div className="flex items-center gap-2">
-        <Link href={`/attendance/${classId}?date=${prevDate}`} className={buttonSecondaryClass}>
-          前日
-        </Link>
-        <form action={`/attendance/${classId}`} className="flex items-center gap-2">
-          <input type="date" name="date" defaultValue={date} className={inputClass} />
-          <button type="submit" className={buttonSecondaryClass}>
-            表示
-          </button>
-        </form>
-        <Link href={`/attendance/${classId}?date=${nextDate}`} className={buttonSecondaryClass}>
-          翌日
-        </Link>
-      </div>
-    </div>
-  );
+    );
+  }
 
   // 一般教員は学期の授業期間外の日付を操作できない（管理者は制限なし）
   const isOutOfTerm = date < cls.term.start_date || date > cls.term.end_date;
   if (staff.role !== "admin" && isOutOfTerm) {
     return (
       <div className="flex flex-col gap-6">
-        {dateNav}
+        {renderDateNav(false)}
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
           授業期間外のため入力できません。
           <br />
@@ -226,6 +232,20 @@ export default async function AttendanceInputPage({
       });
   }
 
+  // 出席入力完了アイコン用：既に取得済みのattendance_records（attByKey）から
+  // 時限ごとの入力済み学生集合を組み立てて判定する（追加のクエリは発生しない）。
+  const recordedByPeriod = new Map<number, Set<string>>();
+  for (const r of existingAttendance ?? []) {
+    const set = recordedByPeriod.get(r.period_no) ?? new Set<string>();
+    set.add(r.student_id);
+    recordedByPeriod.set(r.period_no, set);
+  }
+  const { periodComplete, dayComplete } = computeCompletion(
+    periods.map((p) => p.periodNo),
+    studentIds,
+    recordedByPeriod,
+  );
+
   const eventIds = applicableEvents.map((e) => e.id);
   const electivePeriodNos =
     cls.type === "homeroom"
@@ -252,8 +272,8 @@ export default async function AttendanceInputPage({
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      {dateNav}
+    <div key={date} className="flex flex-col gap-6">
+      {renderDateNav(dayComplete)}
 
       {holiday && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
@@ -278,12 +298,18 @@ export default async function AttendanceInputPage({
                     <input type="hidden" name="class_id" value={classId} />
                     <input type="hidden" name="date" value={date} />
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <h2 className="font-bold text-slate-900">
+                      <h2 className="flex items-center gap-1.5 font-bold text-slate-900">
                         {p.periodLabel}　{p.subject}
                         {p.teacherName && (
                           <span className="ml-2 text-sm font-normal text-slate-500">
                             （{p.teacherName}）
                           </span>
+                        )}
+                        {periodComplete.get(p.periodNo) && (
+                          <CompletionCheckIcon
+                            className="h-5 w-5"
+                            title="この時限の出席入力は完了しています"
+                          />
                         )}
                       </h2>
                       <div className="flex items-center gap-2">
