@@ -6,6 +6,7 @@ import {
   formatDateLabel,
   parseFlexibleDate,
   parseFlexibleYearMonth,
+  listMonthDates,
 } from "./date";
 
 test("dayOfWeekOf: 実行環境のタイムゾーンに関係なく正しい曜日を返す", () => {
@@ -65,4 +66,35 @@ test("parseFlexibleYearMonth: スラッシュ・ゼロ埋めなしを受け付�
 
 test("parseFlexibleYearMonth: 月が範囲外なら不正", () => {
   assert.equal(parseFlexibleYearMonth("2020/13"), null);
+});
+
+test("listMonthDates: 当月の場合は月初から今日までのみ返す（未来日は含めない）", () => {
+  const dates = listMonthDates("2026-06", "2026-06-08");
+  assert.deepEqual(dates, [
+    "2026-06-01",
+    "2026-06-02",
+    "2026-06-03",
+    "2026-06-04",
+    "2026-06-05",
+    "2026-06-06",
+    "2026-06-07",
+    "2026-06-08",
+  ]);
+});
+
+test("listMonthDates: 過去の月の場合はその月の全日程を返す", () => {
+  const dates = listMonthDates("2026-04", "2026-06-08");
+  assert.equal(dates[0], "2026-04-01");
+  assert.equal(dates[dates.length - 1], "2026-04-30");
+  assert.equal(dates.length, 30);
+});
+
+test("listMonthDates: 完全に未来の月の場合は空配列を返す", () => {
+  assert.deepEqual(listMonthDates("2026-07", "2026-06-08"), []);
+});
+
+test("listMonthDates: 年をまたぐ過去月でも正しく末日を求める", () => {
+  const dates = listMonthDates("2025-12", "2026-06-08");
+  assert.equal(dates[0], "2025-12-01");
+  assert.equal(dates[dates.length - 1], "2025-12-31");
 });
