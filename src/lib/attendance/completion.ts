@@ -154,6 +154,29 @@ export async function isClassAttendanceComplete(
 
 export type DayClassStatus = "complete" | "incomplete" | "none";
 
+// Supabase（PostgREST）はデフォルトで1回のクエリにつき最大1000件までしか
+// 返さない（db-max-rows）。月次一覧表は1ヶ月・全クラス分のattendance_records等を
+// まとめて取得するため、学生数・クラス数・日数によっては簡単に1000件を超える。
+// 超えた分は何のエラーも出さず黙って切り捨てられてしまう（実際に、月の前半分の
+// 出席記録しか取得できず、後半の日付が軒並み「未」判定になる不具合が発生した）
+// ため、.range()で全件を取り切るまでページングする。
+const FETCH_PAGE_SIZE = 1000;
+
+async function fetchAllPages<T>(
+  runPage: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
+): Promise<T[]> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data } = await runPage(from, from + FETCH_PAGE_SIZE - 1);
+    const page = data ?? [];
+    all.push(...page);
+    if (page.length < FETCH_PAGE_SIZE) break;
+    from += FETCH_PAGE_SIZE;
+  }
+  return all;
+}
+
 interface MatrixClassInput {
   id: string;
   type: "homeroom" | "elective";
@@ -192,48 +215,51 @@ export async function getMonthlyCompletionMatrix(
   const homeroomClassIds = classes.filter((c) => c.type === "homeroom").map((c) => c.id);
   const electiveClassIds = classes.filter((c) => c.type === "elective").map((c) => c.id);
 
-  const [
-    { data: holidays },
-    { data: candidateEvents },
-    { data: versions },
-    { data: enrollmentRows },
-    { data: membershipRows },
-  ] = await Promise.all([
-    supabase
-      .from("holidays")
-      .select("term_id, date")
-      .in("term_id", termIds)
-      .gte("date", dateFrom)
-      .lte("date", dateTo),
-    supabase
-      .from("events")
-      .select("id, term_id, replace_mode, date_from, date_to")
-      .in("term_id", termIds)
-      .lte("date_from", dateTo)
-      .gte("date_to", dateFrom),
-    supabase
-      .from("timetable_versions")
-      .select("id, class_id, effective_from, effective_to")
-      .in("class_id", classIds)
-      .lte("effective_from", dateTo)
-      .or(`effective_to.is.null,effective_to.gte.${dateFrom}`),
-    homeroomClassIds.length > 0
-      ? supabase
-          .from("class_enrollments")
-          .select("class_id, student_id, valid_from, valid_to, student:students(status)")
-          .in("class_id", homeroomClassIds)
-          .lte("valid_from", dateTo)
-          .or(`valid_to.is.null,valid_to.gte.${dateFrom}`)
-      : { data: [] as MatrixRosterRow[] },
-    electiveClassIds.length > 0
-      ? supabase
-          .from("elective_memberships")
-          .select("class_id, student_id, valid_from, valid_to, student:students(status)")
-          .in("class_id", electiveClassIds)
-          .lte("valid_from", dateTo)
-          .or(`valid_to.is.null,valid_to.gte.${dateFrom}`)
-      : { data: [] as MatrixRosterRow[] },
-  ]);
+  const [{ data: holidays }, { data: candidateEvents }, { data: versions }, enrollmentRows, membershipRows] =
+    await Promise.all([
+      supabase
+        .from("holidays")
+        .select("term_id, date")
+        .in("term_id", termIds)
+        .gte("date", dateFrom)
+        .lte("date", dateTo),
+      supabase
+        .from("events")
+        .select("id, term_id, replace_mode, date_from, date_to")
+        .in("term_id", termIds)
+        .lte("date_from", dateTo)
+        .gte("date_to", dateFrom),
+      supabase
+        .from("timetable_versions")
+        .select("id, class_id, effective_from, effective_to")
+        .in("class_id", classIds)
+        .lte("effective_from", dateTo)
+        .or(`effective_to.is.null,effective_to.gte.${dateFrom}`),
+      homeroomClassIds.length > 0
+        ? fetchAllPages<MatrixRosterRow>((from, to) =>
+            supabase
+              .from("class_enrollments")
+              .select("class_id, student_id, valid_from, valid_to, student:students(status)")
+              .in("class_id", homeroomClassIds)
+              .lte("valid_from", dateTo)
+              .or(`valid_to.is.null,valid_to.gte.${dateFrom}`)
+              .order("id")
+              .range(from, to),
+          )
+        : Promise.resolve([] as MatrixRosterRow[]),
+      electiveClassIds.length > 0
+        ? fetchAllPages<MatrixRosterRow>((from, to) =>
+            supabase
+              .from("elective_memberships")
+              .select("class_id, student_id, valid_from, valid_to, student:students(status)")
+              .in("class_id", electiveClassIds)
+              .lte("valid_from", dateTo)
+              .or(`valid_to.is.null,valid_to.gte.${dateFrom}`)
+              .order("id")
+              .range(from, to),
+          )
+        : Promise.resolve([] as MatrixRosterRow[]),
+    ]);
 
   const holidaySet = new Set((holidays ?? []).map((h) => `${h.term_id}_${h.date}`));
 
@@ -298,10 +324,7 @@ export async function getMonthlyCompletionMatrix(
     return row.student !== null && row.student.status !== "withdrawn";
   }
   const rosterRowsByClass = new Map<string, MatrixRosterRow[]>();
-  const allRosterRows = [
-    ...((enrollmentRows ?? []) as MatrixRosterRow[]),
-    ...((membershipRows ?? []) as MatrixRosterRow[]),
-  ];
+  const allRosterRows = [...enrollmentRows, ...membershipRows];
   for (const row of allRosterRows) {
     const arr = rosterRowsByClass.get(row.class_id) ?? [];
     arr.push(row);
@@ -309,17 +332,21 @@ export async function getMonthlyCompletionMatrix(
   }
 
   const allStudentIds = Array.from(new Set(allRosterRows.map((r) => r.student_id)));
-  const { data: records } =
+  const records =
     allStudentIds.length > 0
-      ? await supabase
-          .from("attendance_records")
-          .select("student_id, date, period_no")
-          .in("student_id", allStudentIds)
-          .gte("date", dateFrom)
-          .lte("date", dateTo)
-      : { data: [] as { student_id: string; date: string; period_no: number }[] };
+      ? await fetchAllPages<{ student_id: string; date: string; period_no: number }>((from, to) =>
+          supabase
+            .from("attendance_records")
+            .select("student_id, date, period_no")
+            .in("student_id", allStudentIds)
+            .gte("date", dateFrom)
+            .lte("date", dateTo)
+            .order("id")
+            .range(from, to),
+        )
+      : [];
   const recordedByDatePeriod = new Map<string, Set<string>>();
-  for (const r of records ?? []) {
+  for (const r of records) {
     const key = `${r.date}_${r.period_no}`;
     const set = recordedByDatePeriod.get(key) ?? new Set<string>();
     set.add(r.student_id);
