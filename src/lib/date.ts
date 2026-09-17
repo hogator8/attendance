@@ -68,6 +68,37 @@ export function parseFlexibleYearMonth(value: string): string | null {
   return `${y}-${m.padStart(2, "0")}`;
 }
 
+// yearMonth（YYYY-MM）で指定した月について、表示対象の日付一覧（YYYY-MM-DD）を
+// 昇順で返す。todayISO() 等で求めた「今日」を明示的に渡す。
+// ・当月（todayと同じ年月）の場合：月初〜今日まで（未来日は含めない）
+// ・過去の月の場合：その月の全日程（1日〜末日）
+// ・未来の月の場合：空配列
+export function listMonthDates(yearMonth: string, today: string): string[] {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const monthFirst = `${yearMonth}-01`;
+  const nextMonthFirst =
+    m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  const monthLast = addDays(nextMonthFirst, -1);
+  const todayMonth = today.slice(0, 7);
+
+  let end: string;
+  if (yearMonth === todayMonth) {
+    end = today;
+  } else if (yearMonth < todayMonth) {
+    end = monthLast;
+  } else {
+    return [];
+  }
+
+  const dates: string[] = [];
+  let cur = monthFirst;
+  while (cur <= end) {
+    dates.push(cur);
+    cur = addDays(cur, 1);
+  }
+  return dates;
+}
+
 // termStart〜termEnd の範囲を、暦月単位（学期の開始・終了で端を切り詰め）に分割する。
 export function monthBuckets(termStart: string, termEnd: string): MonthBucket[] {
   const buckets: MonthBucket[] = [];
